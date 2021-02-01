@@ -1,0 +1,237 @@
+---
+title: "Workflow for AFRP CPUE Data"
+author: "Montana"
+date: "1/20/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## This is the workflow for CPUE calculations on the AFRP masterdabase
+Markdown allows you to produce HTML or PDF documents which are useful for communication and sharing code with others. The chunks of code also allow you to seperate code into pieces that make sense together.
+
+<br>
+
+You will have to install the R-Markdown package: `install.packages('rmarkdown')`. This will allow you to open the raw markdown files.
+
+##### Load Libraries 
+```{r, results='hide', message=F }
+library (ggplot2)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(gridExtra)
+```
+
+##### Load in Data
+
+These data are exported from the master database. You should set your working directory to wherever you keep those files. 
+
+```{r}
+fish = read.csv("FISH_MEASUREMENT_whole.csv")
+sample = read.csv("FISH_SAMPLE.csv")
+sites = read.csv("SITES.csv")
+shoreline_length = read.csv("BEFsites_LengthAndHabitat.csv")
+```
+
+##### Combine datasheets and filter results
+
+The filter function in tidyverse is very useful and straightfoward. Simply write in the name of the column you wish to filter by and then indicate what you would like to filter for. If I wanted multiple gear types I might write `GEAR %in% c("TPN", "BEF)`. The `%in%` operator says to filter for **any** of those criteria in your list. If I did not want to indicate species, I would remove that filter criteria entirely. This would return all fish of all species that meet the other criteria. 
+
+Note - the site column might need to be renamed `SITE_N` to join with all_data depending on the CSV version you have. 
+
+```{r, warning = F, results = F}
+# Join/Filter ---------
+all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML",
+         GEAR == "BEF", 
+         ### single out or remove specific species
+         (SPECIES != "NF" & SPECIES != ""),
+         ### remove sites where no one described habitat
+         (HAB_1 != "NA" & HAB_1 != ""),
+         ### remove sites with no described site 
+         SITE != "NA", 
+         GEAR_CODE == "NAF", 
+         YEAR > 1999, 
+         MONTH < 8
+  )
+```
+
+##### Calculate CPUE data using `EFFORT` in `seconds`
+
+Tommy - CPUE_wide is the format (I think) you were looking for. It also turned out to be a better way of making sure there were zeroes  where there needed to be. However, it still looks like there are multiple efforts for some of the day/site combinations even when its filtered for `NAF`.  
+
+CPUE_long is the format I had before for the other plots below. 
+
+```{r}
+CPUE_wide = all_data %>%
+  select(YSAMP_N, DSAMP_N, YEAR, SEASON, WATER, SITE, SPECIES,
+         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
+  group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+  count() %>% ## Abundance per year, site, species
+  mutate(CPUE_seconds = n / EFFORT) %>%
+  select(-n) %>%
+  pivot_wider(names_from = SPECIES, values_from = CPUE_seconds) %>%
+  mutate(across(everything(), ~replace_na(.x,0)))
+
+head(CPUE_wide) ## Note the multiple efforts per site/DSAMP_N
+
+CPUE_long = CPUE_wide %>%
+  pivot_longer(cols = LLS:length(CPUE_wide),names_to = "SPECIES", values_to = "CPUE_seconds" )
+head(CPUE_long)
+```
+
+###### Plotting the CPUE data for all species from spring NAF boat electrofishing
+
+```{r, warning = F, message=F}
+CPUE_long %>%
+  ggplot(aes(x = YEAR, y = (CPUE_seconds))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +  
+  facet_wrap(~SPECIES)
+
+```
+
+##### Plotting the CPUE data for SMB
+
+
+```{r, warning = F, message=F}
+CPUE_long %>%
+  filter(SPECIES == "SMB") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_seconds))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +   facet_wrap(~SPECIES)
+```
+
+
+##### Calculate CPUE data using `EFFORT` in `shoreline_length`
+
+```{r}
+CPUE_wide_shore = all_data %>%
+  select(YSAMP_N, DSAMP_N, YEAR, SEASON, WATER, SITE, SPECIES,
+       WEIGHT, LENGTH, HAB_1, GEAR, EFFORT, Shape_Length) %>%
+  group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1, Shape_Length) %>%
+  count() %>% ## Abundance per year, site, species
+  mutate(CPUE_shoreline = n / Shape_Length) %>%
+  select(-n) %>%
+  pivot_wider(names_from = SPECIES, values_from = CPUE_shoreline) %>%
+  mutate(across(everything(), ~replace_na(.x,0)))
+
+CPUE_long_shore = CPUE_wide_shore %>%
+  pivot_longer(cols = LLS:length(CPUE_wide_shore),names_to = "SPECIES", values_to = "CPUE_shoreline" )
+```
+
+```{r,message=F}
+CPUE_long_shore %>%
+  ggplot(aes(x = YEAR, y = (CPUE_shoreline))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +  
+  facet_wrap(~SPECIES)
+```
+
+```{r, message= F}
+a = CPUE_long %>%
+  filter(SPECIES == "SMB") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_seconds))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +   facet_wrap(~SPECIES)
+b = CPUE_long_shore %>%
+  filter(SPECIES == "SMB") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_shoreline))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +   facet_wrap(~SPECIES)
+grid.arrange(a,b,ncol = 2)
+```
+
+
+## We Can also use the `all_data` to run other fun analyses! 
+
+##### Here is average length represented by habitat and overall trend through time
+
+While it is not as apparent in these compound graphs, there seem to be some interesting trends between CPUE and average size through time. 
+
+```{r, warning = F, message=F}
+all_data %>%
+  group_by(YEAR, SPECIES, HAB_1, SEASON) %>%
+  mutate(avg.length = mean(LENGTH, na.rm=T)) %>%
+  ggplot(aes(YEAR, y = avg.length)) + 
+  geom_point(aes(color = HAB_1)) + 
+  geom_smooth(method = "lm") + 
+  scale_y_continuous(trans='log2') +
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, hjust=1)) + 
+  facet_wrap(~SPECIES)
+```
+
+#### Checking to see if the habitats are the same 
+
+It looks like all the habitats match up except for Site 1 in HAL that is just missing that information. 
+
+```{r}
+all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
+  filter(GEAR == "BEF") %>%
+  select(WATER, SITE_N, HAB_1) %>%
+  unique() %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
+  filter(WATER %in% c("FBL", "HAL", "LML"),
+         SiteNum != "NA") %>%
+  mutate(check = HAB_1 == Habitat) %>%
+  filter(check == "FALSE"| is.na(check))
+print(all_data)
+```
+
+
+
+
+
+
+## HAL Brook Trout Data for Trap Nets 
+
+```{r, warning = F, message=F}
+# Join/Filter ---------
+all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "HAL",
+         GEAR == "TPN", 
+         YEAR > 1999,
+         ### single out or remove specific species
+         (SPECIES != "NF" & SPECIES != ""), 
+          MONTH > 8)
+
+## Calculate CPUE information ------
+CPUE_wide = all_data %>%
+  select(YSAMP_N, DSAMP_N, YEAR, SEASON, WATER, SITE, SPECIES,
+         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
+  group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+  count() %>% ## Abundance per year, site, species
+  mutate(CPUE_nights = n / EFFORT) %>%
+  select(-n) %>%
+  pivot_wider(names_from = SPECIES, values_from = CPUE_nights) %>%
+  mutate(across(everything(), ~replace_na(.x,0)))
+
+CPUE_long = CPUE_wide %>%
+  pivot_longer(cols = ST:RS,names_to = "SPECIES", values_to = "CPUE_nights" )
+
+# ST by site
+CPUE_long %>%
+  ggplot(aes(x = YEAR, y = (CPUE_nights))) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +  
+  facet_wrap(~SPECIES)
+```
+
+
+
