@@ -23,11 +23,10 @@ library(tidyverse)
 # Defining Data Sheets ----- 
 
 ```{r}
-
-fish = read.csv("FISH_MEASUREMENT_whole.csv")
-sample = read.csv("FISH_SAMPLE.csv")
-sites = read.csv("SITES.csv")
-
+fish = read.csv("Data/FISH_MEASUREMENT.csv")
+sample = read.csv("Data/FISH_SAMPLE.csv")
+sites = read.csv("Data/SITES.csv")
+source(file = "functions.R")
 ```
 
 ```{r}
