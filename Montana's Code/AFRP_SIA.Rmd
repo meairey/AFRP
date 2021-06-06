@@ -1,0 +1,59 @@
+---
+title: "Untitled"
+author: "Montana"
+date: "4/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = F}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+
+```
+
+
+
+```{r}
+SIA_sample = read.csv("SI_SAMPLE.csv")
+SIA_measurement = read.csv("SI_MEASUREMENT.csv")
+SI = left_join(SIA_measurement, SIA_sample,"ISO_SAMP_N") %>%
+  filter(WATER == "LML", CATEGORY %in% c("FISH","SNL","MUS"))
+
+
+SI %>% 
+  group_by(TAXA, YEAR, ISO_SAMP_N) %>%
+  summarise(cat = n())
+
+samp_2002 = SI %>%
+  filter(YEAR == 2002) %>%
+  group_by(TAXA) %>%
+  summarise(cat = n())
+
+
+## 2001 and 2002 seem to have the only useful data 
+
+SI %>% 
+  filter(YEAR == 2001) %>%
+  ggplot(aes(x = D13C, y = D15N, col = TAXA),shape = c(1:10)) + geom_point() 
+
+SI %>% 
+  filter(YEAR %in% c(2001, 2002)) %>%
+  ggplot(aes(x = D13C, y = D15N, col = TAXA)) + 
+  geom_point(aes(shape = as.factor(YEAR))) + 
+  stat_ellipse()
+
+
+SI %>% 
+  filter(YEAR %in% c(2001, 2002)) %>%
+  ggplot(aes(x = D13C, y = D15N, col = TAXA, shape = as.factor(CATEGORY))) + 
+  geom_point()+ 
+  stat_ellipse(level = .9)
+
+```
+

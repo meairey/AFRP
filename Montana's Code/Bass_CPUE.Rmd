@@ -1,0 +1,92 @@
+---
+title: "Untitled"
+author: "Montana"
+date: "4/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Filter the data for all_data, standardize by habitat, 
+
+
+```{r}
+
+## Filtered all_data 
+
+all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML",
+         GEAR == "BEF", 
+         ### single out or remove specific species
+         (SPECIES != "NF" & SPECIES != ""),
+         ### remove sites where no one described habitat
+         (HAB_1 != "NA" & HAB_1 != ""),
+         ### remove sites with no described site 
+         SITE != "NA", 
+         GEAR_CODE == "NAF", 
+         YEAR > 1999, 
+         SPECIES == "SMB", 
+         MONTH < 7)
+
+## Adding in HabNumbs to standardize catch across sites 
+
+Hab_numbs = all_data %>%
+  select(HAB_1, SITE) %>%
+  unique() %>%
+  count(HAB_1) %>%
+  rename(HAB_NUMB = n)
+
+all_data = left_join(all_data, Hab_numbs, by = "HAB_1") 
+
+# Range of SMB lengths= 450 c(5, 455) - Group into lengths 
+
+all_data = all_data %>% mutate(L_GROUP = case_when(
+  all_data$LENGTH < 95 ~ 1, 
+  all_data$LENGTH < 185 & all_data$LENGTH > 95 ~ 2,
+  all_data$LENGTH < 275 & all_data$LENGTH > 185 ~ 3, 
+  all_data$LENGTH < 365 & all_data$LENGTH > 275 ~ 4))
+  
+  ,
+  all_data$LENGTH < 455 & all_data$LENGTH > 365 ~ 5))
+
+all_data =all_data %>% 
+  mutate(L_GROUP = replace(x = L_GROUP, L_GROUP == 1, values = "< 095mm" )) %>% 
+  mutate(L_GROUP = replace(x = L_GROUP, L_GROUP == 2, values = "< 185mm" )) %>% 
+  mutate(L_GROUP = replace(x = L_GROUP, L_GROUP == 3, values = "< 275mm" )) %>% 
+  mutate(L_GROUP = replace(x = L_GROUP, L_GROUP == 4, values = "< 365mm" ))
+
+
+CPUE = all_data %>%
+  select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
+         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT, L_GROUP, HAB_NUMB) %>%
+  group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1, L_GROUP, HAB_NUMB) %>%
+  count() %>% ## Abundance per year, site, species
+  mutate(CPUE_std = n / (EFFORT*HAB_NUMB)) %>%
+  ungroup() %>%
+  complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+  replace_na(list(CPUE_seconds = 0, n = 0))
+
+```
+
+
+```{r, message = F, error = F, warning = F}
+CPUE %>%
+  filter(SPECIES == "SMB", 
+         L_GROUP != "NA") %>%
+  mutate(CPUE_std = round(CPUE_std,4)) %>%
+  ggplot(aes(x = YEAR, y = CPUE_std, col = HAB_1)) +
+  ggtitle("Bass CPUE by Length") +
+  geom_smooth(aes(x = YEAR, y = CPUE_std), se=F)  +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  ylab("CPUE") + 
+  theme(text  = element_text(size = 18)) +
+  facet_wrap(~L_GROUP)
+
+
+
+```
+

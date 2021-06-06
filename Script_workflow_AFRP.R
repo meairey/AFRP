@@ -23,7 +23,8 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
          ### remove sites with no described site 
          SITE != "NA", 
          GEAR_CODE == "NAF", 
-         YEAR > 1999
+         YEAR > 1999,
+         MONTH < 7
   )
 
 
@@ -32,6 +33,7 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
 ## Look to see what is going on with effort is there one per day  
 ## Calculate CPUE information ------
 CPUE = all_data %>%
+  filter(SPECIES %in% c("CC", "CS", "SMB", "MM","PS","WS", "LLS","LT")) %>%
   select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
          FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
   group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT) %>%
@@ -43,10 +45,11 @@ CPUE = all_data %>%
 
 ### Plot CPUE information --------
 ## With CPUE data not logged
-CPUE %>%
+p = CPUE %>%
   ggplot(aes(x = YEAR, y = (CPUE_seconds))) +
   geom_point() +
   geom_smooth(method = "lm") + 
+  ylab("CPUE (s)") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +   facet_wrap(~SPECIES)
 
 
@@ -85,7 +88,7 @@ CPUE = all_data %>%
 ## Plot CPUE information with HAB classifiers 
 ## Standardized 
 CPUE %>%
-  filter(SPECIES %in% c("CC", "CS","LLS","LT","MM", "PS","RS","SMB","SS","ST","WS")) %>%
+  filter(SPECIES %in% c("SMB","CC","CS", "MM")) %>%
   ggplot(aes(x = YEAR, y =CPUE_std,col = HAB_1)) +
   geom_smooth() +
   scale_y_continuous(trans='log2') +
@@ -108,10 +111,9 @@ all_data %>%
 ## Average Length information with habitat classifiers
 
 all_data %>%
+  filter(SPECIES %in% c("SMB","CC","CS", "MM")) %>%
   group_by(YEAR, SPECIES, HAB_1, SEASON) %>%
-  mutate(avg.length = mean(LENGTH, na.rm=T)) %>%
-  ggplot(aes(YEAR, y = avg.length)) + 
-  geom_point(aes(color = HAB_1)) + 
+  ggplot(aes(YEAR, y = LENGTH,color = HAB_1)) + 
   geom_smooth() + 
   scale_y_continuous(trans='log2') +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
@@ -120,3 +122,5 @@ all_data %>%
 
 
 
+geom_point(aes()) +
+mutate(avg.length = mean(LENGTH, na.rm=T)) %>%
