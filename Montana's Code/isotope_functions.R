@@ -1,3 +1,5 @@
+
+
 ## Functions -----------------------------------------------------------
 overlap = function(data_input, comm,dr){
 
@@ -156,7 +158,7 @@ priors$R=1*diag(2);
 priors$k=2; 
 priors$tau.mu=1.0E-3 # Vague priors 
 Nsamples=1000
-n.posts <- 50;
+n.posts <- 1000;
 p.ell <- 0.90 # How much data to include? Standard ellipses --> p.ell = .9
 n.points = 1000
 
