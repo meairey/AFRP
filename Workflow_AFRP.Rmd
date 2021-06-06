@@ -29,7 +29,7 @@ library(gridExtra)
 These data are exported from the master database. You should set your working directory to wherever you keep those files. 
 
 ```{r}
-fish = read.csv("FISH_MEASUREMENT_whole.csv")
+fish = read.csv("")
 sample = read.csv("FISH_SAMPLE.csv")
 sites = read.csv("SITES.csv")
 shoreline_length = read.csv("BEFsites_LengthAndHabitat.csv")
@@ -45,7 +45,6 @@ Note - the site column might need to be renamed `SITE_N` to join with all_data d
 # Join/Filter ---------
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
   left_join(sites, by = "SITE_N") %>% 
-  left_join(shoreline_length, by = "SITE_N") %>%
   separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
   filter(WATER == "LML",
          GEAR == "BEF", 
@@ -56,8 +55,8 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
          ### remove sites with no described site 
          SITE != "NA", 
          GEAR_CODE == "NAF", 
-         YEAR > 1999, 
-         MONTH < 8
+         YEAR > 1999,
+         MONTH < 7
   )
 ```
 
@@ -74,6 +73,9 @@ CPUE_wide = all_data %>%
   group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
   count() %>% ## Abundance per year, site, species
   mutate(CPUE_seconds = n / EFFORT) %>%
+  ungroup() %>%
+  complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+  replace_na(list(CPUE_seconds = 0, n = 0)) %>%
   select(-n) %>%
   pivot_wider(names_from = SPECIES, values_from = CPUE_seconds) %>%
   mutate(across(everything(), ~replace_na(.x,0)))
