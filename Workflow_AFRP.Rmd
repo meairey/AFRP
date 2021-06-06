@@ -8,7 +8,7 @@ output:
 ---
 
 ## This is the workflow for CPUE calculations on the AFRP masterdabase
-Markdown allows you to produce HTML or PDF documents which are useful for communication and sharing code with others. The chunks of code also allow you to seperate code into pieces that make sense together.
+Markdown allows you to produce HTML or PDF documents which are useful for communication and sharing code with others. The chunks of code also allow you to separate code into pieces that make sense together.
 
 <br>
 
@@ -29,10 +29,10 @@ library(gridExtra)
 These data are exported from the master database. You should set your working directory to wherever you keep those files. 
 
 ```{r}
-fish = read.csv("")
-sample = read.csv("FISH_SAMPLE.csv")
-sites = read.csv("SITES.csv")
-shoreline_length = read.csv("BEFsites_LengthAndHabitat.csv")
+fish = read.csv("Data/FISH_MEASUREMENT.csv")
+sample = read.csv("Data/FISH_SAMPLE.csv")
+sites = read.csv("Data/SITES.csv")
+shoreline_length = read.csv("Data/BEFsites_LengthAndHabitat.csv")
 ```
 
 ##### Combine datasheets and filter results
@@ -45,6 +45,7 @@ Note - the site column might need to be renamed `SITE_N` to join with all_data d
 # Join/Filter ---------
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
   left_join(sites, by = "SITE_N") %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
   separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
   filter(WATER == "LML",
          GEAR == "BEF", 
@@ -68,9 +69,9 @@ CPUE_long is the format I had before for the other plots below.
 
 ```{r}
 CPUE_wide = all_data %>%
-  select(YSAMP_N, DSAMP_N, YEAR, SEASON, WATER, SITE, SPECIES,
+  select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
          FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
-  group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+  group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
   count() %>% ## Abundance per year, site, species
   mutate(CPUE_seconds = n / EFFORT) %>%
   ungroup() %>%
@@ -83,7 +84,7 @@ CPUE_wide = all_data %>%
 head(CPUE_wide) ## Note the multiple efforts per site/DSAMP_N
 
 CPUE_long = CPUE_wide %>%
-  pivot_longer(cols = LLS:length(CPUE_wide),names_to = "SPECIES", values_to = "CPUE_seconds" )
+  pivot_longer(cols = BB:length(CPUE_wide),names_to = "SPECIES", values_to = "CPUE_seconds" )
 head(CPUE_long)
 ```
 
@@ -116,17 +117,20 @@ CPUE_long %>%
 
 ```{r}
 CPUE_wide_shore = all_data %>%
-  select(YSAMP_N, DSAMP_N, YEAR, SEASON, WATER, SITE, SPECIES,
+  select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
        WEIGHT, LENGTH, HAB_1, GEAR, EFFORT, Shape_Length) %>%
-  group_by(WATER, DSAMP_N, YEAR, SITE, SPECIES, EFFORT, HAB_1, Shape_Length) %>%
+  group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1, Shape_Length) %>%
   count() %>% ## Abundance per year, site, species
   mutate(CPUE_shoreline = n / Shape_Length) %>%
+  ungroup() %>%
+  complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+  replace_na(list(CPUE_shoreline = 0, n = 0)) %>%
   select(-n) %>%
   pivot_wider(names_from = SPECIES, values_from = CPUE_shoreline) %>%
   mutate(across(everything(), ~replace_na(.x,0)))
 
 CPUE_long_shore = CPUE_wide_shore %>%
-  pivot_longer(cols = LLS:length(CPUE_wide_shore),names_to = "SPECIES", values_to = "CPUE_shoreline" )
+  pivot_longer(cols = BB:length(CPUE_wide_shore),names_to = "SPECIES", values_to = "CPUE_shoreline" )
 ```
 
 ```{r,message=F}
