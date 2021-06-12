@@ -1,4 +1,7 @@
-
+fish = read.csv("../Data/FISH_MEASUREMENT.csv")
+sample = read.csv("../Data/FISH_SAMPLE.csv")
+sites = read.csv("../Data/SITES.csv")
+shoreline_length = read.csv("../Data/BEFsites_LengthAndHabitat.csv")
 
 species = unique(fish$SPECIES)
 
@@ -28,12 +31,38 @@ filter_data = function(water,
            MONTH < max_month)
 }
 
+
+
+
+
+hab_numbs = function(input_data){
+  Hab_numbs = input_data %>%
+    select(HAB_1, SITE) %>%
+    unique() %>%
+    count(HAB_1) %>%
+    rename(HAB_NUMB = n)
+   
+  return(Hab_numbs)
+}
+
 CPUE_long_seconds = function(data_input){
   data_input %>% select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
                         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
     group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT) %>%
     count() %>% ## Abundance per year, site, species
     mutate(CPUE_seconds = n / EFFORT) %>%
+    ungroup() %>%
+    complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+    replace_na(list(CPUE_seconds = 0, n = 0))
+}
+
+CPUE_long_seconds_habitat = function(data_input){
+  data_input %>% select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
+                        FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
+    group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+    count() %>% ## Abundance per year, site, species
+    left_join(Hab_numbs, by = "HAB_1") %>%
+    mutate(CPUE_std = n / (EFFORT*HAB_NUMB)) %>%
     ungroup() %>%
     complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
     replace_na(list(CPUE_seconds = 0, n = 0))

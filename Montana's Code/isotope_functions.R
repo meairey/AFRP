@@ -1,11 +1,12 @@
 
 
 ## Functions -----------------------------------------------------------
-overlap = function(data_input, comm,dr){
-
+overlap = function(data_input, comm, dr){
+  ## Remove this later
   data = data_input %>% 
     filter(community == comm)
   
+  data = combo %>% filter(community == 1)
   spp=length(unique(data$group))
   print(data)
   
@@ -65,7 +66,7 @@ overlap = function(data_input, comm,dr){
   
   rownames(olap_mat) = c(paste("Com",comm),"Spp Pair")
   
-  return(as.data.frame(t(olap_mat)))
+  return(as.data.frame(t(olap_mat))) ## This is a reminder to pull 90% CI intervals out of this at a point when i can play with code and dont need to be writing
   
   
 }
@@ -83,6 +84,7 @@ data_setup = function(data_input, com_num, remove_species){
   data = data[order(data$group),] %>% as.data.frame()
   siber.example <- createSiberObject(data)
   posterior <- siberMVN(siber.example, parms, priors)
+
   both = list(siber.example, posterior)
   return(both)
 }
@@ -172,4 +174,20 @@ species_legend = data.frame(Species = unique(combined$Species),
 legend  = species_legend[order(species_legend$group),]
 
 legend$color = COLORS[1:18]
+
+
+### Legend
+species_legend = data.frame(Species = unique(X$Species),
+                            group = unique(x$group)) 
+
+
+legend  = species_legend[order(species_legend$group),]
+legend$color = COLORS[1:15]
+
+
+## combined legend 
+
+species_legend = data.frame(Species = unique(combined$Species),
+                            group = unique(x$group))
+
 

@@ -49,9 +49,7 @@ all_data = all_data %>% mutate(L_GROUP = case_when(
   all_data$LENGTH < 185 & all_data$LENGTH > 95 ~ 2,
   all_data$LENGTH < 275 & all_data$LENGTH > 185 ~ 3, 
   all_data$LENGTH < 365 & all_data$LENGTH > 275 ~ 4))
-  
-  ,
-  all_data$LENGTH < 455 & all_data$LENGTH > 365 ~ 5))
+
 
 all_data =all_data %>% 
   mutate(L_GROUP = replace(x = L_GROUP, L_GROUP == 1, values = "< 095mm" )) %>% 

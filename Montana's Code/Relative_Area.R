@@ -13,8 +13,9 @@ layman.B <- bayesianLayman(mu.post)
 
 
 
-for(h in 2:4){
+for(h in 3){
   d = data_setup(x,h,11)
+  names = legend$color[sort(unique(x$group))]
   spp=length(names(d[[2]]))
   spec = names(d[[2]]) %>%
     as.data.frame() %>%
@@ -53,12 +54,12 @@ for(h in 2:4){
   colnames(blank_vec_N)=legend$Species[as.numeric(spec$sp)]
   median_N = blank_vec_N %>% as.data.frame() %>%
     summarise_all(list(median))
-  frame = blank_vec_C %>% as.data.frame() %>%
+  frame_C = blank_vec_C %>% as.data.frame() %>%
     pivot_longer(1:length(blank_vec_C[1,]),
                  names_to = "SP",
-                 values_to = "Dat") 
+                 values_to = "Dat_C") 
   p = ggplot() + 
-    geom_point(frame, mapping=aes(y = SP, x = Dat)) +
+    geom_point(frame_C, mapping=aes(y = SP, x = Dat)) +
     xlim(0,1) + ggtitle(paste(lake$Water[h])) +
     ylab("Species") + 
     xlab("Proportion of C axis")+
@@ -67,12 +68,12 @@ for(h in 2:4){
                             y = legend$Species[as.numeric(spec$sp)]),
                col = "red", pch = 2, size = 4)
   colnames(blank_vec_N)=legend$Species[as.numeric(spec$sp)]
-  frame = blank_vec_N %>% as.data.frame() %>%
+  frame_N = blank_vec_N %>% as.data.frame() %>%
     pivot_longer(1:length(blank_vec_C[1,]),
-                 names_to = "SP",
-                 values_to = "Dat")   
+                 names_to = "SP_N",
+                 values_to = "Dat_N")   
   g = ggplot() + 
-    geom_point(frame, mapping=aes(y = SP, x = Dat)) + 
+    geom_point(frame_N, mapping=aes(y = SP, x = Dat)) + 
     geom_point()+ geom_point() +
     xlim(0,1) + ggtitle(paste(lake$Water[h])) +
     ylab("Species") + 
@@ -84,6 +85,22 @@ for(h in 2:4){
   print(p)
   print(g)
 }
+
+
+# Graph comparing proportions of each axis as plots 
+cbind(frame_C, frame_N) %>%
+  as.data.frame() %>%
+  select(-SP_N) %>%
+  ggplot(aes(x = Dat_C, y = Dat_N, col = SP)) +
+  stat_ellipse(level = .9)
+# Proportions as single numbers may be more useful for comparing between lakes
+cbind(frame_C, frame_N) %>%
+  as.data.frame() %>%
+  select(-SP_N) %>% 
+  mutate(proportion = Dat_N / Dat_C) %>%
+  ggplot(aes(x = proportion, y = SP)) + 
+  geom_point()
+
 
 ### Proportion of axes HRM
 for(h in 2:4){
