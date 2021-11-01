@@ -158,7 +158,7 @@ print(p)
 
 legend$taxon = c("Ictaluridae", "Leuciscidae", "Leuciscidae","Leuciscidae","Leuciscidae","Leuciscidae","Leuciscidae","Leuciscidae","Leuciscidae", "Salmonidae","Leuciscidae", "Leuciscidae","Leuciscidae","Centrarchidae","Osmeridae","Salmonidae", "Catostomidae", "NA")
 
-legend$tax_col = c("#A6CEE3",  "#FF7F00","#FF7F00","#FF7F00","#FF7F00" ,"#FF7F00", "#FF7F00","#FF7F00","#FF7F00", "#CAB2D6" , "#FF7F00", "#FF7F00","#FF7F00", "#FC8D62", "#E31A1C" , "#B2DF8A","#A6D854","#6A3D9A" )
+legend$tax_col = c("#A6CEE3",  "#FF7F00","#FF7F00","#FF7F00","#FF7F00" ,"#FF7F00", "#FF7F00","#FF7F00","#FF7F00", "#CAB2D6" , "#FF7F00", "#FF7F00","#FF7F00", "#6A3D9A" , "#E31A1C" , "#B2DF8A","#A6D854","#6A3D9A" )
 
 
 for(h in lake$Water[2:4]){
