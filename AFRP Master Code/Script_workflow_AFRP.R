@@ -5,7 +5,7 @@ library(tidyverse)
 
 
 # Defining Data Sheets ----- 
-fish = read.csv("FISH_MEASUREMENT_whole.csv")
+fish = read.csv("FISH_MEASUREMENT.csv")
 sample = read.csv("FISH_SAMPLE.csv")
 sites = read.csv("SITES.csv")
 
@@ -24,9 +24,15 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
          SITE != "NA", 
          GEAR_CODE == "NAF", 
          YEAR > 1999,
-         MONTH < 7
+         MONTH > 7, 
+         OTOLITH == 1,
+         SPECIES == "SMB",
+         LENGTH < 100
   )
 
+all_data %>%
+  group_by(YEAR) %>%
+  count()
 
 
 

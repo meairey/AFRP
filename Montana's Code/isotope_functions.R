@@ -117,9 +117,10 @@ ellip_data = function(numb_species, numb_posts, posterior){
 
 ## Data setup ---------------------
 
-combined = read.csv("SIA_Data.csv", header=T) %>%
+combined = read.csv("Data/SIA_Data.csv", header=T) %>%
   mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
-  left_join(read.csv("ADKwebs_Data.csv"),.)
+  left_join(read.csv("Data/ADKwebs_Data.csv"))
+  #left_join(read.csv("ADKwebs_Data.csv"),.)
 
 ## Clean Setup for baesyain runs 
 # TL has nas so if you na omit it causes issues
@@ -177,17 +178,28 @@ legend$color = COLORS[1:18]
 
 
 ### Legend
-species_legend = data.frame(Species = unique(X$Species),
-                            group = unique(x$group)) 
+#species_legend = data.frame(Species = unique(X$Species),
+                           # group = unique(x$group)) 
 
 
-legend  = species_legend[order(species_legend$group),]
-legend$color = COLORS[1:15]
+#legend  = species_legend[order(species_legend$group),]
+#legend$color = COLORS[1:14]
 
 
 ## combined legend 
 
-species_legend = data.frame(Species = unique(combined$Species),
-                            group = unique(x$group))
+## species_legend = data.frame(Species = unique(combined$Species),
+                            ##group = unique(x$group))
+
+
+
+
+
+
+
+
+
+
+
 
 

@@ -15,14 +15,17 @@ libraries("snow","plotrix", "SIBER","ggplot2", "tidyr","ellipse","mixtools",
           "gridExtra", "dplyr","RColorBrewer")
 
 source("isotope_functions.R")
+
+source("isotope_functions.R")
+
 ```
 
 
 ```{r, message=F, error = F}
 ## Load in data ------------
-combined = read.csv("SIA_Data.csv", header=T) %>%
+combined = read.csv("Data/SIA_Data.csv", header=T) %>%
   mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
-  left_join(read.csv("ADKwebs_Data.csv"),.)
+  left_join(read.csv("Data/ADKwebs_Data.csv"),.)
 ```
 # Setup ---
 
