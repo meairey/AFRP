@@ -8,8 +8,16 @@ Below is an inventory of the code contained in this file and its general purpose
 
 Thanks!
 
-##### Code Inventory 
+#### Code Inventory 
 
 
-The following files are used to load in AFRP data, filter it, and do several simple data wrangling manipulations. 
+##### The following files are used to load in AFRP data, filter it, and do several simple data wrangling manipulations. 
+
+
 `AFRP_Function.html` - Illustrative document describing how to use the functions to manipulate data
+
+`AFRP_Function.Rmd` - Markdown file used to create `AFRP_Function.html`
+
+`AFRP_Functions.R` - Contains the actual functions. This needs to be loaded into scripts to use existing functions using `source("AFRP_Functions")` at the top of your script. 
+
+
