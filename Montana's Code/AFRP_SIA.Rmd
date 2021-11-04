@@ -13,8 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyr)
 library(dplyr)
 library(ggplot2)
-
-
+library(stringr)
 ```
 
 
@@ -57,3 +56,105 @@ SI %>%
 
 ```
 
+```{r, message=F}
+LML = read.csv("JML.Data.Master.csv", header=T)
+
+fish = read.csv("FISH_MEASUREMENT_whole.csv")
+
+## species "mussel", "Phytoplankton"
+
+LML %>% 
+  filter(Species %in% c("SMB","CC","CS","MM","PS","SS")) %>%
+  ggplot(aes(x = as.numeric(C), y = as.numeric(N), col = Species)) + 
+  geom_point()+ 
+  stat_ellipse(level = .9) + 
+  ylab("d15N") + xlab("d13C") + 
+  ggtitle("LML Isotopes Lepak 2001-2002")
+
+
+LML %>% 
+  
+  ggplot(aes(x = as.numeric(C), y = as.numeric(N), col = Species)) + 
+  geom_point()+ 
+  stat_ellipse(level = .9) + 
+  ylab("d15N") + xlab("d13C") + 
+  ggtitle("LML Isotopes Lepak 2001-2002")
+
+```
+
+```{r}
+
+
+LML = LML %>%
+  filter(Group ==  "Fish") %>%
+  group_by(Species) %>%
+  filter(n() >= 3) 
+  
+
+LML_data = LML %>%
+  data.frame(iso1 = as.numeric(.$C), 
+             iso2 = as.numeric(.$N), 
+             group = as.numeric(as.factor(.$Species)),
+             community = rep(1, length(.$Species))) %>%
+  select(iso1, iso2, group, community) %>%
+  na.omit()
+
+species_legend_LML = data.frame(Species = unique(LML$Species),
+                            group = unique(LML_data$group)) 
+
+
+legend  = species_legend_LML[order(species_legend_LML$group),]
+
+LML_overlap = overlap(data_input = LML_data,comm = 1)
+
+
+LML_overlap[order(LML_overlap[,1], decreasing = T),]
+
+```
+
+
+
+```{r}
+
+cat = fish %>% select(LENGTH, WEIGHT, YSAMP_N, FISH_N)
+
+LML_SMB = LML %>% filter(Species == "SMB") %>% na.omit()
+  
+
+
+LML_SMB %>% ggplot(aes(x = as.numeric(C), y = as.numeric(Length))) + 
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+
+LML_SMB %>% ggplot(aes(y = as.numeric(N), x = as.numeric(Length))) + 
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+
+LML_SMB %>% ggplot(aes(y = as.numeric(N),
+                       x = as.numeric(C),
+                       size = as.numeric(Length))) + 
+  geom_point()
+
+LML_SMB %>% ggplot(aes(y = Weight, x=as.numeric(Length)))+ geom_point()
+
+
+
+
+cat = read.csv("FISH_AGE_GROWTH.csv") %>%
+  select(FINAL_AGE, FISH_N)
+
+dog = left_join(fish, cat, by = "FISH_N") %>%
+  filter(FINAL_AGE != "", SPECIES == "SMB") %>%
+  mutate(FINAL_AGE  = as.numeric(FINAL_AGE)) %>%
+  select(LENGTH, FINAL_AGE)
+
+
+unique(dog$FINAL_AGE)
+
+
+dog %>% ggplot(aes(y = LENGTH, x = FINAL_AGE)) + 
+  geom_point()
+
+```
