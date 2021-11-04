@@ -78,9 +78,9 @@ overlap = function(data_input, comm, dr){
 ## Removed PD because not sure identification 
 library(abind)
 
-data_setup = function(data_input, com_num, remove_species){
+data_setup = function(data_input, com_num){
   data = data_input %>% 
-    filter(community == com_num, group != as.numeric(remove_species))
+    filter(community == com_num)
   data = data[order(data$group),] %>% as.data.frame()
   siber.example <- createSiberObject(data)
   posterior <- siberMVN(siber.example, parms, priors)

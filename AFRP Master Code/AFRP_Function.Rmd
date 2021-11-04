@@ -11,12 +11,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Installing Library ------ 
 
-```{r}
-
+```{r, warning = F, message=F}
 library(dplyr)
 library(tidyr)
 library(tidyverse)
-
 ```
 
 
@@ -27,7 +25,7 @@ fish = read.csv("../Data/FISH_MEASUREMENT.csv")
 sample = read.csv("../Data/FISH_SAMPLE.csv")
 sites = read.csv("../Data/SITES.csv")
 shoreline_length = read.csv("../Data/BEFsites_LengthAndHabitat.csv")
-source(file = "functions.R")
+source(file = "AFRP_Functions.R")
 ```
 
 ```{r}

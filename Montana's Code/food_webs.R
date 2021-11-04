@@ -59,10 +59,10 @@ for(h in 1:5){
   p = p + geom_point(aes(x = ellip[,1,], y = ellip[,2,],color = rep(as.factor(unique(data$group)),each = 1000)),size = 01, alpha = .09) +
     ggtitle(paste("Site", paste(h))) + 
     ylab("d15N") + xlab("d13C") +
-    scale_color_manual(values =legend$color[sort(unique(d$group))] , 
-                       labels =legend[sort(unique(d$group)),1],
-                       name = "Species"
-    ) + theme(text = element_text(size = 19))
+    scale_color_manual(values = legend$color[sort(unique(combo$group))], 
+                       labels =legend[sort(unique(combo$group)),1],
+                       name = "Species" )   + theme(text = element_text(size = 18))+
+    theme(text = element_text(size = 19)) + xlim(-36,-26) + ylim(5,11)
   print(p)
   
 }
