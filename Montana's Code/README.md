@@ -1,10 +1,11 @@
----
-title: "Untitled"
-author: "Montana"
-date: "11/4/2021"
-output: html_document
----
+# Montana's Code Repository 
 
-This is a test if i remembe rhow to do this 
+Welcome to my code repository! Feel free to use any of the code here. Most of it has been generated for the purpose of anayzing isotope and community data. I tend to keep my own data in the `data` folder and have saved graphics in the `graphics` folder. 
 
+<br>
+
+I have tried to label all scripts in progress with `working`. All scripts without that label should run smoothly. 
+
+Thanks!
+-Montana 
 
