@@ -228,4 +228,52 @@ for(h in lake$Water[2:4]){
 
 
 
+### New lakes checking something it looks like i got the functions working here you should use this
+## dat[[1]] = siber example
+## dat[[2]] = posterior
+
+n.posts = 100
+COLORS = sample(COLORS, replace = FALSE, size = 18)
+for(h in lake$Water[2:4]){
+  h = 4
+  dat = data_setup(data,h)
+  
+  spp=length(names(dat[[2]]))
+  
+  
+  
+  p = ggplot() + geom_point(dat[[4]], mapping = aes(x = d13C, y =d15N , 
+                                                 color = group))
+  
+  ellip = array(0, dim=c((n.points),length(c(0,1)),spp))
+  
+  for(i in 1:spp){
+    ellipse_data =  ellipse::ellipse(x = matrix(c(median(dat[[2]][[i]][,1]),
+                                                  median(dat[[2]][[i]][,2]),
+                                                  median(dat[[2]][[i]][,3]),
+                                                  median(dat[[2]][[i]][,4])),
+                                                2,2), 
+                                     centre = c(median(dat[[2]][[i]][,5]),
+                                                median(dat[[2]][[i]][,6])), 
+                                     level = .9, 
+                                     npoints = n.points)
+    ellip[,,i] = ellipse_data
+  }
+  #,color = rep(as.factor(unique(data$group,each = 1000))
+  ## trying this - this is modified check out previous versions if it stops working
+  p = p + geom_point(aes(x = ellip[,1,], y = ellip[,2,], color = (rep(as.factor(unique((dat[[3]]$group))),each = 1000))),size = 01, alpha = .09) +
+    ggtitle(paste("Site", paste(h))) + 
+    ylab("d15N") + xlab("d13C")   + 
+    scale_color_manual(values = legend$color[sort(unique(dat[[4]]$group))], 
+                       labels =legend[sort(unique(dat[[4]]$group)),1],
+                       name = "Species"
+    )+ 
+    theme(text = element_text(size = 13))
+  
+  print(p)
+}
+
+
+
+
 

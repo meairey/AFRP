@@ -76,6 +76,7 @@ overlap = function(data_input, comm, dr){
 ## Data function ----------------------------
 
 ## Removed PD because not sure identification 
+## Must put in siber formatted data_input
 library(abind)
 
 data_setup = function(data_input, com_num){
@@ -85,7 +86,7 @@ data_setup = function(data_input, com_num){
   siber.example <- createSiberObject(data)
   posterior <- siberMVN(siber.example, parms, priors)
 
-  both = list(siber.example, posterior)
+  both = list(siber.example, posterior, data)
   return(both)
 }
 
@@ -116,36 +117,29 @@ ellip_data = function(numb_species, numb_posts, posterior){
 }
 
 ## Data setup ---------------------
-
-combined = read.csv("Data/SIA_Data.csv", header=T) %>%
-  mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
-  left_join(read.csv("Data/ADKwebs_Data.csv"))
-  #left_join(read.csv("ADKwebs_Data.csv"),.)
-
-## Clean Setup for baesyain runs 
-# TL has nas so if you na omit it causes issues
 exclude =3
-X=combined %>% 
-  select(Sample.ID, d13C, d15N, Water, Species, Weight, Site) %>%
-  group_by(Species, Water) %>%
+combo = read.csv("Data/SIA_Data.csv", header=T) %>%
+  mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
+  left_join(read.csv("Data/ADKwebs_Data.csv")) %>% 
+  mutate(group = as.factor(as.numeric(as.factor(Species)))) %>%
+  filter(Species != "NA") %>%
+  select(Species,group, Site,Water, d15N, d13C)
+
+# Use data throughout other code
+data = combo  %>%
+  data.frame(iso1 = .$d13C,
+             iso2 = .$d15N,
+             group = as.numeric(as.factor(.$Species)),
+             community = as.numeric(as.factor(.$Water)))   %>% 
+  select(iso1, iso2, group, community) %>%
+  group_by(group, community) %>%
   filter(n()>=exclude) %>%
-  na.omit()
+  na.omit() 
+  
 
-x = data.frame(iso1 = X$d13C,
-               iso2 = X$d15N,
-               group = as.numeric(as.factor(X$Species)),
-               community = as.numeric(as.factor(X$Water))) 
-
-species_legend = data.frame(Species = unique(X$Species),
-                            group = unique(x$group)) 
-
-
-legend  = species_legend[order(species_legend$group),]
-
-lake = data.frame(Water = unique(X$Water), 
-                  Community = unique(x$community))
-
-lake = lake[order(lake$Community),]
+lake = data.frame(Water = unique(combo$Water), 
+                  Community = unique(data$community)) %>%
+  arrange(Community)
 
 # Params --- 
 
@@ -168,28 +162,15 @@ n.points = 1000
 ## Colors and legends 
 COLORS = c(brewer.pal(12, "Paired"),brewer.pal(8, "Set2"))
 
-species_legend = data.frame(Species = unique(combined$Species),
-                            group = unique(as.numeric(as.factor(combined$Species))))
+species_legend = data.frame(Species = unique(combo$Species),
+                            group = unique(as.numeric(as.factor(combo$Species))))
 
 
 legend  = species_legend[order(species_legend$group),]
 
-legend$color = COLORS[1:18]
+legend$color = COLORS[1:16]
 
 
-### Legend
-#species_legend = data.frame(Species = unique(X$Species),
-                           # group = unique(x$group)) 
-
-
-#legend  = species_legend[order(species_legend$group),]
-#legend$color = COLORS[1:14]
-
-
-## combined legend 
-
-## species_legend = data.frame(Species = unique(combined$Species),
-                            ##group = unique(x$group))
 
 
 

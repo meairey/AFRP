@@ -1,18 +1,18 @@
+## Library Load -------------------------
 library(easypackages)  
 libraries("snow","plotrix", "SIBER","ggplot2", "tidyr","ellipse","mixtools",
           "mvtnorm","plot3D","scatterplot3d","scales","viridis","ggplot2",
           "gridExtra", "dplyr","RColorBrewer")
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP/Montana's Code")
 source("isotope_functions.R")
+## Run Siber ------------------- 
+# Do I need this?
+#siber.example <- createSiberObject(x) 
+#posterior <- siberMVN(siber.example, parms, priors)
+#mu.post <- extractPosteriorMeans(siber.example, posterior)
+#layman.B <- bayesianLayman(mu.post)
 
-siber.example <- createSiberObject(x) 
-posterior <- siberMVN(siber.example, parms, priors)
-mu.post <- extractPosteriorMeans(siber.example, posterior)
-layman.B <- bayesianLayman(mu.post)
-
-## Proportion of axes
-
-
-
+## Proportion of axes lakes -----------------
 for(h in 3){
   d = data_setup(x,h,11)
   names = legend$color[sort(unique(x$group))]
@@ -102,7 +102,7 @@ cbind(frame_C, frame_N) %>%
   geom_point()
 
 
-### Proportion of axes HRM
+### Proportion of axes HRM ---------------
 for(h in 2:4){
   
   combo = combined %>% 
@@ -126,7 +126,7 @@ for(h in 2:4){
   data = data[order(data$group),] %>% as.data.frame()
   
   
-  d = data_setup(x,h,11)
+  d = data_setup(x,h)
   spp=length(names(d[[2]]))
   
   
@@ -228,17 +228,20 @@ for(h in 2:4){
 }
 
 
-## Total Area 
+
+## Total Area different----------------------------
+## dat[[1]] = siber example
+## dat[[2]] = posterior
 for(h in 2:4){
-  dat = data_setup(x,h,11)
+  
+  dat = data_setup(data,h)
   
   ellipse.area = siberEllipses(dat[[2]])
   TA = rowSums(ellipse.area)
   ellipse.area = ellipse.area/TA
-  spec = names(dat[[2]]) %>%
-    as.data.frame() %>%
-    separate(1, into = c("com","sp"))
-  names = legend$Species[as.numeric(spec$sp)]
+
+  names = unique(legend$Species[dat[[3]]$group])
+  
   colnames(ellipse.area) = names
   vec = vector()
   for(i in 1:length(ellipse.area[1,])){
@@ -256,14 +259,21 @@ for(h in 2:4){
     pivot_longer(1:length(names(dat[[2]])),
                  names_to = "SP",
                  values_to = "Dat") 
-   g = ggplot() + 
-    geom_point(p, mapping = aes(y = SP , x = Dat)) + xlim(0,.7) + 
+  g = ggplot() + 
+    geom_point(p, mapping = aes(y = SP , x = Dat, col = SP)) + xlim(0,.7) + 
     ggtitle(lake$Water[h]) +
     ylab("Species") + 
     xlab("Relative Niche Area") + 
     theme(text = element_text(size = 18)) +
     geom_point(mapping =aes(x = as.numeric(median_area[1,]), 
-                            y = legend$Species[as.numeric(spec$sp)]),
-               col = "red", pch = 2, size = 4)
+                            y = unique(p$SP)),
+               col = unique(legend$color[sort(unique(dat[[3]]$group))]), pch = "|", size = 5)+ 
+    scale_color_manual(values = legend$color[sort(unique(dat[[3]]$group))], 
+                       
+                       name = "Species")
+  
   print(g)
 }
+
+
+combo %>% filter(Water == "TPP", Species == "CC")
