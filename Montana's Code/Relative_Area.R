@@ -234,7 +234,7 @@ for(h in 2:4){
 ## dat[[2]] = posterior
 for(h in 2:4){
   
-  dat = data_setup(data,h)
+  dat = data_setup(data,h,"PD")
   
   ellipse.area = siberEllipses(dat[[2]])
   TA = rowSums(ellipse.area)
@@ -261,7 +261,7 @@ for(h in 2:4){
                  values_to = "Dat") 
   g = ggplot() + 
     geom_point(p, mapping = aes(y = SP , x = Dat, col = SP)) + xlim(0,.7) + 
-    ggtitle(lake$Water[h]) +
+    ggtitle(lake$Name[h]) +
     ylab("Species") + 
     xlab("Relative Niche Area") + 
     theme(text = element_text(size = 18)) +
@@ -276,4 +276,4 @@ for(h in 2:4){
 }
 
 
-combo %>% filter(Water == "TPP", Species == "CC")
+

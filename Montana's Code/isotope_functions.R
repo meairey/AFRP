@@ -79,14 +79,15 @@ overlap = function(data_input, comm, dr){
 ## Must put in siber formatted data_input
 library(abind)
 
-data_setup = function(data_input, com_num){
+data_setup = function(data_input, com_num, sp_removed){
+  combo_lake = combo %>% filter(Water == lake$Water[[com_num]], Species != sp_removed)
   data = data_input %>% 
-    filter(community == com_num)
+    filter(community == com_num, group != (legend %>% filter(Species == sp_removed))$group)
   data = data[order(data$group),] %>% as.data.frame()
   siber.example <- createSiberObject(data)
   posterior <- siberMVN(siber.example, parms, priors)
 
-  both = list(siber.example, posterior, data)
+  both = list(siber.example, posterior, data,combo_lake)
   return(both)
 }
 
@@ -139,7 +140,8 @@ data = combo  %>%
 
 lake = data.frame(Water = unique(combo$Water), 
                   Community = unique(data$community)) %>%
-  arrange(Community)
+  arrange(Community) %>% 
+  mutate(Name = c("Heron Marsh", "Long Pond", "Panther Lake", "Tom Peck Pond"))
 
 # Params --- 
 
@@ -170,6 +172,7 @@ legend  = species_legend[order(species_legend$group),]
 
 legend$color = COLORS[1:16]
 
+legend$color[11] = "#ffcb2d"
 
 
 
