@@ -232,6 +232,8 @@ for(h in 2:4){
 ## Total Area different----------------------------
 ## dat[[1]] = siber example
 ## dat[[2]] = posterior
+## dat[[3]] = data frame that gets subsetted
+## dat[[4]] = combo that is subsetted
 for(h in 2:4){
   
   dat = data_setup(data,h,"PD")
