@@ -100,6 +100,85 @@ orditorp(NMDS.d,display="species",col="black",air=0.01)
 legend("bottomright", legend = names, col = unique(color), lty= rep(1, 5), title = "Year Breaks")
 
 
+## Size structure NMDS --------------------------------------------------------
+
+l = all_data %>% select(SPECIES, LENGTH, WEIGHT, SITE, YEAR) %>% 
+  na.omit()
+# Define weight/length matrix, remove NAs
+
+# .  Binning data -----------
+
+## Create bins
+weight_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
+i <- weight_range[1]
+bin_size = 20 ## Define this based on desired bin size
+w.r = na.omit(weight_range[1:(i+bin_size)==(i+bin_size)])
+w.r[1] = weight_range[1] - 1
+w.r[length(w.r)+1] = weight_range[length(weight_range)]
+
+## Bin data frame 
+
+length_frame = l %>%  
+  mutate(length_bin = .bincode(LENGTH, w.r)) %>% 
+  select(YEAR, length_bin) %>% 
+  group_by(length_bin, YEAR) %>%
+  summarise(length_count = n())
+  
+## Size structure NMDS -------------------------------
+# community is year
+
+totals = length_frame %>% 
+  group_by(YEAR) %>%
+  summarise(totals = sum(length_count))
+
+length_NMDS = left_join(length_frame, totals) %>% 
+  mutate(Proportion = length_count / totals) %>% 
+  select(YEAR, Proportion) %>%
+  pivot_wider(names_from = YEAR,
+              values_from = Proportion) %>% 
+  column_to_rownames(., var = "length_bin") %>%
+  mutate_all( ~replace(., is.na(.), 0)) %>%
+  as.data.frame()
+
+NMDS.L=metaMDS(length_NMDS,  k=3) 
+
+NMDS.L$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., YEAR = c(2000:2019)) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.L$species))) + 
+  geom_text(aes(color = as.numeric(rownames(NMDS.L$species))),size =3)+ 
+  scale_color_gradientn(colours = rainbow(5)) + xlim(-1.15, -.1) +
+  labs(color = "Year") + 
+  ggtitle("Size structure through time")
+
+  3170
+
+
+
+
+## Graph length frequency across time ------------------
+
+length_frame %>%  
+  mutate(YEAR = .bincode(YEAR, c(1999, 2000, 2005, 2010, 2015, 2020))) %>% 
+  group_by(YEAR, length_bin) %>%
+  summarise(length_count_average = mean(length_count)) %>%
+  ggplot(aes(x = length_bin, y = length_count_average, colour= as.character(YEAR))) +
+  geom_point() + 
+  geom_smooth(se=F,method = 'lm') + 
+  ylim(0,800) + ylab("Average Frenqency of Size")+ ylab("Length Bin") +
+  labs(colour = "Year") + ggtitle("Average size frequency across time")
+
+l %>%  
+  mutate(length_bin = .bincode(LENGTH, w.r)) %>%
+  mutate(YEAR = .bincode(YEAR, c(1999, 2000, 2005, 2010, 2015, 2020))) %>% 
+  ggplot(aes(x = length_bin )) + 
+  geom_bar(aes(fill = as.character(YEAR))) +   
+  ggtitle("Size structure through time") +
+  labs(fill = "Year")
+  #+ 
+  #scale_y_continuous(trans='log10')
+
+
 
 
 ## Group by 5-6 yr intervals? Make those groupings larger 
