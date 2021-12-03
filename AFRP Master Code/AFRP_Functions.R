@@ -8,7 +8,7 @@ species = unique(fish$SPECIES)
 filter_data = function(water, 
                        gear, 
                        species ,
-                       gear_code,
+                       #gear_code,
                        min_year = 1900, 
                        max_year = 2100, 
                        min_month = 0,
@@ -24,7 +24,7 @@ filter_data = function(water,
            SPECIES %in% species, 
            HAB_1 != "NA",
            HAB_1 != "",
-           GEAR_CODE %in% gear_code, 
+           #GEAR_CODE %in% gear_code, 
            YEAR > min_year , 
            YEAR < max_year, 
            MONTH > min_month,
@@ -47,7 +47,7 @@ hab_numbs = function(input_data){
 
 CPUE_long_seconds = function(data_input){
   data_input %>% select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
-                        FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
+                        FISH_N, WEIGHT, LENGTH,  EFFORT) %>%
     group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT) %>%
     count() %>% ## Abundance per year, site, species
     mutate(CPUE_seconds = n / EFFORT) %>%
@@ -90,11 +90,11 @@ CPUE_wide_seconds_avg = function(data_input){
 }
 
 ## CPUE_wide_seconds not averaged across sites
-CPUE_wide_seconds = function(data_input){
+CPUE_wide_seconds = function(data_input){ ## I removed HAB_1 from the select for the TPN data
   data_input %>%
     select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
-           FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
-    group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+           FISH_N, WEIGHT, LENGTH,  EFFORT) %>%
+    group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT) %>%
     count() %>% ## Abundance per year, site, species
     mutate(CPUE_seconds = n / EFFORT) %>%
     ungroup() %>%
