@@ -1,14 +1,14 @@
-fish = read.csv("../Data/FISH_MEASUREMENT.csv")
-sample = read.csv("../Data/FISH_SAMPLE.csv")
-sites = read.csv("../Data/SITES.csv")
-shoreline_length = read.csv("../Data/BEFsites_LengthAndHabitat.csv")
+fish = read.csv("Data/FISH_MEASUREMENT.csv")
+sample = read.csv("Data/FISH_SAMPLE.csv")
+sites = read.csv("Data/SITES.csv")
+shoreline_length = read.csv("Data/BEFsites_LengthAndHabitat.csv")
 
 species = unique(fish$SPECIES)
 
 filter_data = function(water, 
                        gear, 
                        species ,
-                       #gear_code,
+                       gear_code,
                        min_year = 1900, 
                        max_year = 2100, 
                        min_month = 0,
@@ -24,7 +24,7 @@ filter_data = function(water,
            SPECIES %in% species, 
            HAB_1 != "NA",
            HAB_1 != "",
-           #GEAR_CODE %in% gear_code, 
+           GEAR_CODE %in% gear_code, 
            YEAR > min_year , 
            YEAR < max_year, 
            MONTH > min_month,
