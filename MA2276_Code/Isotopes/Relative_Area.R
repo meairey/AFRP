@@ -3,7 +3,10 @@ library(easypackages)
 libraries("snow","plotrix", "SIBER","ggplot2", "tidyr","ellipse","mixtools",
           "mvtnorm","plot3D","scatterplot3d","scales","viridis","ggplot2",
           "gridExtra", "dplyr","RColorBrewer")
-source("isotope_functions.R")
+## Always set the working directory to be the project directory in R
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+source("MA2276_Code/Isotopes/isotope_functions.R")
+
 ## Run Siber ------------------- 
 # Do I need this?
 #siber.example <- createSiberObject(x) 
