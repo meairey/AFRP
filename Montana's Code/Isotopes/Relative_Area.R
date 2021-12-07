@@ -3,7 +3,7 @@ library(easypackages)
 libraries("snow","plotrix", "SIBER","ggplot2", "tidyr","ellipse","mixtools",
           "mvtnorm","plot3D","scatterplot3d","scales","viridis","ggplot2",
           "gridExtra", "dplyr","RColorBrewer")
-source("Isotopes/isotope_functions.R")
+source("isotope_functions.R")
 ## Run Siber ------------------- 
 # Do I need this?
 #siber.example <- createSiberObject(x) 
