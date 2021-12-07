@@ -7,15 +7,17 @@ library(vegan)
 library(RColorBrewer)
 
 ### Data -------------------
-setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP/Montana's Code")
-fish = read.csv("../Data/FISH_MEASUREMENT.csv")
-sample = read.csv("../Data/FISH_SAMPLE.csv")
-sites = read.csv("../Data/SITES.csv")
-shoreline_length = read.csv("../Data/BEFsites_LengthAndHabitat.csv")
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+
+## I think these can go they should pop up from the source line
+#fish = read.csv("Data/FISH_MEASUREMENT.csv")
+#sample = read.csv("Data/FISH_SAMPLE.csv")
+#sites = read.csv("Data/SITES.csv")
+#shoreline_length = read.csv("Data/BEFsites_LengthAndHabitat.csv")
 
 ## Functions source -----------
+source("AFRP_Master_Code/AFRP_Functions.R")
 
-source(file = "../AFRP Master Code/AFRP_Functions.R")
 
 ## Graphics setup -------
 
@@ -35,6 +37,7 @@ year_bin =  (data.frame(treat = c(2000:2019)) %>%
 #breaks = c(1999,2000, 2009, 2011, 2019)))
 
 ## Filter data -----------
+
 ## Filter data for Little Moose, Boat electrofishing, in the spring. I've also filtered it to be yr 2000+ because earlier years had strange site labels. 
 
 TPN_gearcodes = unique((sample %>% filter(GEAR == "TPN", WATER == "LML"))$GEAR_CODE)
@@ -44,9 +47,10 @@ all_data = filter_data(water = "LML", gear = "BEF",
                        species = species) %>% 
   filter(MONTH %in% c(4,5,6,7,8), YEAR >= 2000)
 
+
 #tpn_data = filter_data(water = "LML", gear = "TPN" ,
                        
-                       species = species) ### You need to figure out why this isnt workin in the filter data function!! 
+                       #species = species) ### You need to figure out why this isnt workin in the filter data function!! 
 
 tpn_data = left_join(fish, sample, by = "YSAMP_N") %>% 
   left_join(sites, by = "SITE_N") %>% 
@@ -70,7 +74,7 @@ rare = all_data %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES)
+remove = c(stocked, rare$SPECIES) ## Remove smallmouth bass
 all_data = all_data %>% filter(SPECIES %nin% remove)
 
 # Site averaged NMDS across sites -----------------
@@ -78,17 +82,46 @@ all_data = all_data %>% filter(SPECIES %nin% remove)
 
 CPUE.w.sec.a = CPUE_wide_seconds_avg(all_data) %>% 
   column_to_rownames(., var = "YEAR") # Data setup
-NMDS=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
+
+NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
 
 stressplot(NMDS) 
 plot(NMDS)
 
-ordiplot(NMDS,type="n", xlim = c(-1, 1), main = 'Site Averaged - Year')
-orditorp(NMDS,display="sites",cex=.5,air=0.01)
+#NMDS$species = species
+#NMDS$points = years
 
-ordiplot(NMDS,type="n", ylim = c(-1.2, .5), main = 'Site Averaged - Species')
-orditorp(NMDS,display="species",col="red",air=0.01,)
+NMDS.cpue_year$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("Species - averaged across sites")
+
+NMDS.cpue_year$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year)) + 
+  geom_text(aes(color = as.numeric(Year)), size =4) + 
+  scale_color_gradientn(colours = rainbow(5)) +
+  labs(color = "Year") + 
+  ggtitle("Years - averaged across sites")
+
+NMDS.cpue_year$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>%
+  mutate(Year_bin = .bincode(Year, bins)) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
+  geom_text(size =4) + 
+  stat_ellipse() +
+  labs(color = "Year") + 
+  ggtitle("Years - averaged across sites")  + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
  
 # Day averaged NMDS across sites --------------
@@ -101,52 +134,66 @@ CPUE.w.sec = CPUE_wide_seconds(all_data) %>%
 
 years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
   separate(names, into = c("YEAR", "SITE"))
+
 color = as.character(year_bin) %>% as.factor() %>% as.numeric()
 
-NMDS.d=metaMDS(CPUE.w.sec, # Our community-by-species matrix
+NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
              k=3) 
 
-stressplot(NMDS.d)
-plot(NMDS.d)
-
-## The plot for years here is by site and it looks terrible. Not worth looking at. 
+stressplot(NMDS.cpue_siteyear)
+plot(NMDS.cpue_siteyear)
 
 
-ordiplot(NMDS.d,type="n", main = 'Day Averaged - Species')
-for(i in unique(year_bin)) {
-  ordiellipse(NMDS.d$point[grep(i,year_bin),],draw="polygon",kind=c("sd"),
-           groups=year_bin[year_bin==i],col=color[grep(i,year_bin)],label=F) } 
+NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("Species: by site + year")
 
-orditorp(NMDS.d,display="species",col="black",air=0.01)
-legend("bottomright", legend = names, col = unique(color), lty= rep(1, 5), title = "Year Breaks")
+NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= rownames(.)) %>%
+  separate(Year, into = c("Year","Site"), remove = F) %>%
+  as.data.frame() %>%
+  arrange(Year) %>% 
+  mutate(Year = .bincode(Year, bins )) %>%
+  ggplot(aes(x = MDS1, y = MDS2, color = as.character(Year))) + 
+  geom_point(size =1) + 
+  stat_ellipse() +
+  labs(color = "Year") + 
+  ggtitle("Years: by site") + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+
 
 
 ## Size structure NMDS --------------------------------------------------------
 
-l = all_data %>% select(SPECIES, LENGTH, WEIGHT, SITE, YEAR) %>% 
+l = all_data %>% select(SPECIES, LENGTH, SITE, YEAR) %>% 
   na.omit()
+
 # Define weight/length matrix, remove NAs
 
 # .  Binning data -----------
 
 ## Create bins
-weight_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
-i <- weight_range[1] # starting interval for w.r
+length_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
+i <- length_range[1] # starting interval for l.r
 bin_size = 20 ## Define this based on desired bin size
-w.r = na.omit(weight_range[1:(i+bin_size)==(i+bin_size)]) # vector of weights to be binned
-w.r[1] = weight_range[1] - 1
-w.r[length(w.r)+1] = weight_range[length(weight_range)]
+l.r = na.omit(length_range[1:(i+bin_size)==(i+bin_size)]) # vector of weights to be binned
+l.r[1] = length_range[1] - 1
+l.r[length(l.r)+1] = length_range[length(length_range)]
 
 ## Bin data frame 
 
 length_frame = l %>%  
-  mutate(length_bin = .bincode(LENGTH, w.r)) %>% 
+  mutate(length_bin = .bincode(LENGTH, l.r)) %>% 
   select(YEAR, length_bin) %>% 
   group_by(length_bin, YEAR) %>%
   summarise(length_count = n())
 
 length_frame_site = l %>%  
-  mutate(length_bin = .bincode(LENGTH, w.r)) %>% 
+  mutate(length_bin = .bincode(LENGTH, l.r)) %>% 
   select(YEAR, length_bin, SITE) %>% 
   group_by(length_bin, YEAR, SITE) %>% 
   summarise(length_count = n()) %>%
@@ -174,7 +221,7 @@ length_NMDS = left_join(length_frame, totals) %>%
   mutate_all( ~replace(., is.na(.), 0)) %>%
   as.data.frame()
 
-NMDS.L=metaMDS(length_NMDS,  k=3) 
+NMDS.L = metaMDS(length_NMDS,  k=2) 
 
 
 # This was the graph Tommy wanted with the different colors as "communities" 
@@ -184,10 +231,12 @@ NMDS.L$species %>% as.data.frame()  %>%
   as.data.frame() %>%
   arrange(Year) %>% 
   ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.L$species))) + 
-  geom_text(aes(color = as.numeric(rownames(NMDS.L$species))),size =3)+ 
+  geom_text(aes(color = as.numeric(rownames(NMDS.L$species))),size =4)+ 
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
   ggtitle("Size structure through time")
+
+
 
 NMDS.L$species %>% as.data.frame()  %>%  
   cbind(., Year= as.numeric(rownames(.))) %>%
@@ -196,10 +245,13 @@ NMDS.L$species %>% as.data.frame()  %>%
   cbind(., year_bin) %>% 
   ggplot(aes(x = MDS1,
              y = MDS2,
-             label = rownames(NMDS.L$species),
+             label = Year,
              color = as.character(year_bin))) + 
   geom_text(size =3) + 
-  stat_ellipse()
+  stat_ellipse() + 
+  labs(color = " Year Bin") + 
+  ggtitle("Size structure - site averaged") +
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
 NMDS.L.site = metaMDS(length_frame_site, k = 2)
 
@@ -212,9 +264,10 @@ NMDS.L.site$species %>% as.data.frame() %>%
   mutate(YEAR = .bincode(.$YEAR, bins)) %>%
   ggplot(aes(x = MDS1,
              y = MDS2,
-             label = rownames(NMDS.L.site$species),
+             label = YEAR,
              color = as.character(YEAR))) + 
-  stat_ellipse(level = .9) + 
+ # geom_point() +
+  stat_ellipse(level = .9, size = 1) +
   labs(color = "Year") + 
   ggtitle("Size structure (by site) through time") +
   scale_color_discrete(name = "Year", labels = as.character(bins[-1]))
@@ -229,16 +282,18 @@ length_frame %>%
   ggplot(aes(x = length_bin, y = length_count_average, colour= as.character(YEAR))) +
   geom_point() + 
   geom_smooth(se=F,method = 'lm') + 
-  ylim(0,800) + ylab("Average Frenqency of Size")+ ylab("Length Bin") +
-  labs(colour = "Year") + ggtitle("Average size frequency across time")
+  ylim(0,800) + ylab("Average Frenqency of Size")+ xlab("Length Bin") +
+  labs(colour = "Year") + ggtitle("Average size frequency across time") + 
+  scale_color_discrete(name = "Year", labels = as.character(bins[-1]))
 
 l %>%  
-  mutate(length_bin = .bincode(LENGTH, w.r)) %>%
+  mutate(length_bin = .bincode(LENGTH, l.r)) %>%
   mutate(YEAR = .bincode(YEAR, c(1999, 2000, 2005, 2010, 2015, 2020))) %>% 
   ggplot(aes(x = length_bin )) + 
   geom_bar(aes(fill = as.character(YEAR))) +   
   ggtitle("Size structure through time") +
-  labs(fill = "Year")
+  labs(fill = "Year")  + 
+  scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
   #+ 
   #scale_y_continuous(trans='log10')
 
@@ -260,7 +315,8 @@ LT_data %>% group_by(YEAR) %>%
 # Length across time with trendline
 LT_data %>% 
   ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
-  geom_smooth()
+  geom_smooth() + 
+  ggtitle("LT Length through time")
 # Standard deviation of length across time
 LT_data %>% group_by(YEAR) %>%
   summarise( st.d = sd(LENGTH)) %>%
@@ -307,6 +363,7 @@ plot(NMDS.d)
 
 
 ordiplot(NMDS.d,type="n", main = 'Day Averaged - Species')
+
 for(i in unique(year_bin)) {
   ordiellipse(NMDS.d$point[grep(i,year_bin),],draw="polygon",kind=c("sd"),
               groups=year_bin[year_bin==i],col=color[grep(i,year_bin)],label=F) } 
@@ -315,6 +372,15 @@ orditorp(NMDS.d,display="species",col="black",air=0.01)
 legend("bottomright", legend = names, col = unique(color), lty= rep(1, 5), title = "Year Breaks")
 
 
+
+ordiplot(NMDS.d,type="n")
+#Plot convex hulls with colors baesd on year_binment
+for(i in unique(year_bin)) {
+  ordihull(example_NMDS$point[grep(i,year_bin),],draw="polygon",
+           groups=year_bin[year_bin==i],col=colors[grep(i,year_bin)],label=F) } 
+orditorp(example_NMDS,display="species",col="red",air=0.01)
+orditorp(example_NMDS,display="sites",col=c(rep("green",5),
+                                            rep("blue",5)),air=0.01,cex=1.25)
 
 
 
@@ -347,7 +413,8 @@ ST_data %>% group_by(YEAR) %>%
 
 ST_data %>% 
   ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
-  geom_smooth()
+  geom_smooth() + 
+  ggtitle("ST Length through time")
 
 ST_data %>% group_by(YEAR) %>%
   summarise( st.d = sd(LENGTH)) %>%
@@ -367,7 +434,8 @@ RWF_data %>% group_by(YEAR) %>%
 
 RWF_data %>% 
   ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
-  geom_smooth()
+  geom_smooth() + 
+  ggtitle("RWF Length through time")
 
 RWF_data %>% group_by(YEAR) %>%
   summarise( st.d = sd(LENGTH)) %>%
@@ -387,7 +455,8 @@ CC_data %>% group_by(YEAR) %>%
 
 CC_data %>% 
   ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
-  geom_smooth()
+  geom_smooth() + 
+  ggtitle("CC Length through time")
 
 CC_data %>% group_by(YEAR) %>%
   summarise( st.d = sd(LENGTH)) %>%
