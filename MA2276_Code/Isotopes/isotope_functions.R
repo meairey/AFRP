@@ -122,7 +122,7 @@ exclude =3
 
 combo = read.csv("Data/SIA_Data.csv", header=T) %>%
   mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
-  left_join(read.csv("Data/ADKwebs_Data.csv")) %>% 
+  left_join(read.csv("MA2276_Code/Data/ADKwebs_Data.csv")) %>% 
   mutate(group = as.factor(as.numeric(as.factor(Species)))) %>%
   filter(Species != "NA") %>%
   select(Species,group, Site,Water, d15N, d13C)
