@@ -1,6 +1,6 @@
 ## Splitting up Heron Marsh 
 
-source("isotope_functions.R")
+source("MA2276_Code/Isotopes/isotope_functions.R")
 
 
 
@@ -164,16 +164,16 @@ legend$taxon = c("Ictaluridae", "Leuciscidae", "Leuciscidae","Leuciscidae","Leuc
 legend$tax_col = c("#A6CEE3",  "#FF7F00","#FF7F00","#FF7F00","#FF7F00" ,"#FF7F00", "#FF7F00","#FF7F00","#FF7F00", "#CAB2D6" , "#FF7F00", "#FF7F00","#FF7F00",  "#E31A1C" , "#B2DF8A","#A6D854")
 
 
-### Lakes ------------------------
+### Lakes keep ------------------------
 # Functional colors and includes taxonomy
 ## dat[[1]] = siber example
 ## dat[[2]] = posterior
 
 n.posts = 100
 COLORS = sample(COLORS, replace = FALSE, size = 18)
-for(h in 2:4){
+for(h in 1:8){
   
-  dat = data_setup(data, h, "PD")
+  dat = data_setup(data, h)
   
   spp=length(names(dat[[2]]))
   
@@ -218,7 +218,7 @@ for(h in 2:4){
                        labels =legend[sort(unique(combo$group)),4],
                        name = "Species")
   
-  print(z)
+  #print(z)
   print(p)
 }
 

@@ -79,10 +79,10 @@ overlap = function(data_input, comm, dr){
 ## Must put in siber formatted data_input
 library(abind)
 
-data_setup = function(data_input, com_num, sp_removed){
-  combo_lake = combo %>% filter(Water == lake$Water[[com_num]], Species != sp_removed)
+data_setup = function(data_input, com_num){
+  combo_lake = combo %>% filter(Water == lake$Water[[com_num]])
   data = data_input %>% 
-    filter(community == com_num, group != (legend %>% filter(Species == sp_removed))$group)
+    filter(community == com_num)
   data = data[order(data$group),] %>% as.data.frame()
   siber.example <- createSiberObject(data)
   posterior <- siberMVN(siber.example, parms, priors)
@@ -124,7 +124,7 @@ combo = read.csv("Data/SIA_Data.csv", header=T) %>%
   mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
   left_join(read.csv("MA2276_Code/Data/ADKwebs_Data.csv")) %>% 
   mutate(group = as.factor(as.numeric(as.factor(Species)))) %>%
-  filter(Species != "NA") %>%
+  filter(Species != "NA" & Species !="PD_remove") %>%
   select(Species,group, Site,Water, d15N, d13C)
 
 # Use data throughout other code
@@ -142,7 +142,7 @@ data = combo  %>%
 lake = data.frame(Water = unique(combo$Water), 
                   Community = unique(data$community)) %>%
   arrange(Community) %>% 
-  mutate(Name = c("Heron Marsh", "Long Pond", "Panther Lake", "Tom Peck Pond"))
+  mutate(Name = c("Heron Marsh BA","Heron Marsh BW2","Heron Marsh FE","Heron Marsh SH","Heron Marsh UB", "Long Pond", "Panther Lake", "Tom Peck Pond"))
 
 # Params --- 
 
@@ -165,18 +165,21 @@ n.points = 1000
 ## Colors and legends 
 COLORS = c(brewer.pal(12, "Paired"),brewer.pal(8, "Set2"))
 
-species_legend = data.frame(Species = unique(combo$Species),
-                            group = unique(as.numeric(as.factor(combo$Species))))
+#species_legend = data.frame(Species = unique(combo$Species),
+                           # group = unique(as.numeric(as.factor(combo$Species))))
 
+legend = combo %>%
+  select(Species, group) %>% 
+  unique() %>% 
+  mutate(group = as.numeric(as.factor(group))) %>%
+  arrange(group) %>%
+  mutate(color = COLORS[1:length(unique(combo$Species))])
 
-legend  = species_legend[order(species_legend$group),]
+#legend  = species_legend[order(species_legend$group),]
 
-legend$color = COLORS[1:16]
+#legend$color = COLORS[1:16]
 
-legend$color[11] = "#ffcb2d"
-
-
-
+#legend$color[11] = "#ffcb2d"
 
 
 

@@ -5,15 +5,15 @@ library(tidyr)
 library(tidyverse)
 library(ggplot2)
 
-fish = read.csv("Data/2021_Measurement.csv")
-sample = read.csv("Data/2021_Sample.csv")
+fish = read.csv("MA2276_Code/Data/2021_Measurement.csv")
+sample = read.csv("MA2276_Code/Data/2021_Sample.csv")
 #sites = read.csv("SITES.csv")
 
 # Join/Filter ---------
 # Join/Filter ---------
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
    
-  filter(WATER == "HRM",
+  filter(WATER %in% c("TPP","LOP","HRM_FOR","PRL","HRM_BW2"),
          ### single out or remove specific species
          (SPECIES != "NF" & SPECIES != ""),
          SPECIES != "PAINTED TURTLE",
@@ -69,7 +69,7 @@ PRL %>% ggplot(aes(x = SPECIES, y = n)) +
 
 
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
-  filter(### single out or remove specific species
+  filter(WATER %in% c("TPP","LOP","HRM_FOR","PRL","HRM_BW2"),
          (SPECIES != "NF" & SPECIES != ""),
          SPECIES != "PAINTED TURTLE",
          SPECIES != "NEWT", 
@@ -83,7 +83,7 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
          WATER != "COM") %>%
   select(YSAMP_N, SPECIES, LENGTH, DATE_COL, WATER) %>%
   separate(DATE_COL, into = c("MONTH","DAY","YEAR"), sep = "/") %>%
-  filter(MONTH ==8) %>% as.data.frame() %>%
+  filter(MONTH %in% c(8,9)) %>% as.data.frame() %>%
   complete(SPECIES, WATER) %>% 
   replace_na(list(CPUE_seconds = 0, n = 0))
   
@@ -91,6 +91,7 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
 all = all_data %>%
   group_by(SPECIES,WATER) %>%
   count()
+
 all %>% ggplot(aes(x = SPECIES, y = n, fill = WATER)) +
   geom_bar(stat="identity", position=position_dodge()) + 
   theme(axis.text.x=element_text(angle=90,hjust=1),
