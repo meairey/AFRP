@@ -40,45 +40,46 @@ year_bin =  (data.frame(treat = c(2000:2019)) %>%
 
 ## Filter data for Little Moose, Boat electrofishing, in the spring. I've also filtered it to be yr 2000+ because earlier years had strange site labels. 
 
-TPN_gearcodes = unique((sample %>% filter(GEAR == "TPN", WATER == "LML"))$GEAR_CODE)
-
-all_data = filter_data(water = "LML", gear = "BEF",
-                       gear_code = "NAF", 
-                       species = species) %>% 
-  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 2000)
-
-
 #tpn_data = filter_data(water = "LML", gear = "TPN" ,
                        
                        #species = species) ### You need to figure out why this isnt workin in the filter data function!! 
 
+# Trap Net Data
 tpn_data = left_join(fish, sample, by = "YSAMP_N") %>% 
   left_join(sites, by = "SITE_N") %>% 
   left_join(shoreline_length, by = "SITE_N") %>%
-  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% filter(WATER == "LML", 
-                                                                 GEAR == "TPN", 
-                                                                 YEAR >= 2000)
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML",
+         GEAR == "TPN",
+         YEAR >= 2000)
+# Gillnet Data
 gln_data = left_join(fish, sample, by = "YSAMP_N") %>% 
   left_join(sites, by = "SITE_N") %>% 
   left_join(shoreline_length, by = "SITE_N") %>%
-  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% filter(WATER == "LML", 
-                                                                 GEAR == "GLN", 
-                                                                 YEAR >= 2000)
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML", 
+         GEAR == "GLN", 
+         YEAR >= 2000)
 
-## Removing rare + stocked taxa ------------ 
-## Taxa get removed if they are rare or if they are stocked given that stocking would be an artificial manipulation of populations not relating to bass 
+# Removing rare + stocked taxa ------------ 
+## Taxa get removed if they are rare or if they are stocked given 
+### that stocking would be an artificial manipulation of populations 
+### not relating to bass 
 
-`%nin%` = Negate(`%in%`)
+`%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
 rare_threashold = 50 ## change this based on preference
 rare = all_data %>% group_by(SPECIES) %>% 
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES) ## Remove smallmouth bass
+remove = c(stocked, rare$SPECIES, "SMB") ## Remove smallmouth bass
 all_data = all_data %>% filter(SPECIES %nin% remove)
 
 # Site averaged NMDS across sites -----------------
 ## This averages CPUE across sites and days within a given year
+### Notes
+#### NMDS$species = species
+#### NMDS$points = years
 
 CPUE.w.sec.a = CPUE_wide_seconds_avg(all_data) %>% 
   column_to_rownames(., var = "YEAR") # Data setup
@@ -88,9 +89,6 @@ NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
 
 stressplot(NMDS) 
 plot(NMDS)
-
-#NMDS$species = species
-#NMDS$points = years
 
 NMDS.cpue_year$species %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -123,8 +121,8 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   ggtitle("Years - averaged across sites")  + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
- 
 # Day averaged NMDS across sites --------------
+
 CPUE.w.sec = CPUE_wide_seconds(all_data) %>%
   unite("Group", c(YEAR, SITE)) %>% 
   column_to_rownames(., var = "Group") %>% 
@@ -142,7 +140,6 @@ NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
 
 stressplot(NMDS.cpue_siteyear)
 plot(NMDS.cpue_siteyear)
-
 
 NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -170,7 +167,12 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
 ## Size structure NMDS --------------------------------------------------------
 
 l = all_data %>% select(SPECIES, LENGTH, SITE, YEAR) %>% 
-  na.omit()
+  na.omit() %>% mutate(LENGTH = log(LENGTH))
+
+hist(log(l$LENGTH)) ##** 
+hist(log10(l$LENGTH))
+hist(sqrt(l$LENGTH))
+hist(l$LENGTH)
 
 # Define weight/length matrix, remove NAs
 
@@ -179,7 +181,7 @@ l = all_data %>% select(SPECIES, LENGTH, SITE, YEAR) %>%
 ## Create bins
 length_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
 i <- length_range[1] # starting interval for l.r
-bin_size = 20 ## Define this based on desired bin size
+bin_size = .1 ## Define this based on desired bin size
 l.r = na.omit(length_range[1:(i+bin_size)==(i+bin_size)]) # vector of weights to be binned
 l.r[1] = length_range[1] - 1
 l.r[length(l.r)+1] = length_range[length(length_range)]
@@ -488,6 +490,35 @@ CS_data %>% group_by(YEAR) %>%
 
 summary(lm(CS_data$LENGTH~CS_data$YEAR))
 
+
+## Gill Net (GLN) Data ---------------------------------------
+
+
+gln_data %>% filter(SPECIES == "LT") %>% 
+  ggplot(aes(x = YEAR, y = LENGTH)) + 
+  geom_point() + geom_smooth() + 
+  ggtitle("LT GLN")
+
+gln_data %>% filter(SPECIES == "RWF") %>% 
+  ggplot(aes(x = YEAR, y = LENGTH)) + 
+  geom_point() + geom_smooth() +
+  ggtitle("RWF GLN")
+
+gln_data %>% group_by(SPECIES) %>%
+  summarise(n())
+
+
+
+
+## Combining BEF and TPN data 
+LT_combined = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "GLN") %>% rbind(LT_data %>% select(LENGTH, YEAR) %>% mutate(gear = "TPN")) %>% rbind(all_data %>% filter(SPECIES =="LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "zBEF"))
+
+LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
+  geom_point() + geom_smooth() + ggtitle("LT Combined Data")
+LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
+  geom_jitter() + ggtitle("LT Combined Data")+ geom_smooth()
+
+all_data %>% filter(SPECIES == "LT")
 
 
 ## IF we havent measured the size of a fish - they measure every year, but they don't measure every fish - look at a way to resample that size distribution for the year. Use distribution and randomly sample it. 
