@@ -117,6 +117,8 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   labs(color = "Year") + 
   ggtitle("Years - averaged across sites")
 
+NMDS.cpue_year$points %>% as.data.frame() %>% write_csv(file = "NMDS_points.csv")
+
 NMDS.cpue_year$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
   cbind(., Year= as.numeric(rownames(.))) %>%
@@ -174,7 +176,7 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
 ## Size structure NMDS --------------------------------------------------------
 
 l = all_data %>% select(SPECIES, LENGTH, SITE, YEAR) %>% 
-  na.omit() %>% mutate(LENGTH = log(LENGTH)) %>% filter(YEAR != 2002)
+  na.omit() %>% mutate(LENGTH = (LENGTH)) %>% filter(YEAR != 2002) ## Modified to remove 2002 and transform length by the sqrt 
 
 hist(log(l$LENGTH)) ##** 
 hist(log10(l$LENGTH+1))
@@ -186,17 +188,11 @@ hist(l$LENGTH)
 # .  Binning data -----------
 
 ## Create bins
-length_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
-i <- length_range[1] # starting interval for l.r
-bin_size = 20 ## Define this based on desired bin size
-l.r = na.omit(length_range[1:(i+bin_size)==(i+bin_size)]) # vector of lengths to be binned
-l.r[1] = length_range[1] - 1
-l.r[length(l.r)+1] = length_range[length(length_range)]
+
 
 ## New bins 
-bin_size = .2
-length_range = seq(from =range(l$LENGTH)[1]-.1, to =  range(l$LENGTH)[2], by = bin_size)
-l.r = length_range
+bin_size = 20
+l.r = seq(from =range(l$LENGTH)[1]-.1, to =  range(l$LENGTH)[2], by = bin_size)
 l.r[length(l.r)+1] = range(l$LENGTH)[2] + .1
 
 ## Bin data frame 
@@ -249,7 +245,7 @@ NMDS.L$species %>% as.data.frame()  %>%
   geom_text(aes(color = Year),size =4)+ 
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
-  ggtitle("LOG: Size structure through time") 
+  ggtitle("SQRT: Size structure through time") 
 
 
 NMDS.L$species %>% as.data.frame()  %>%  
@@ -264,10 +260,10 @@ NMDS.L$species %>% as.data.frame()  %>%
   geom_text(size =3) + 
   stat_ellipse() + 
   labs(color = " Year Bin") + 
-  ggtitle("LOG:Size structure - site averaged") +
+  ggtitle("SQRT:Size structure - site averaged") +
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-NMDS.L.site = metaMDS(length_frame_site, k = 2, try = 100)
+NMDS.L.site = metaMDS(length_frame_site, k = 2)
 
 NMDS.L.site$species %>% as.data.frame() %>% 
   cbind(., "ID" = rownames(.)) %>%
@@ -283,7 +279,7 @@ NMDS.L.site$species %>% as.data.frame() %>%
   #geom_point() +
   stat_ellipse(level = .9, size = 1) +
   labs(color = "Year") + 
-  ggtitle("Size structure (by site) through time") +
+  ggtitle("SQRT:Size structure (by site) through time") +
   scale_color_discrete(name = "Year", labels = as.character(bins[-1]))
   
 
@@ -343,6 +339,9 @@ years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
   separate(names, into = c("YEAR", "SITE"))
 
 years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
   separate(names, into = c("YEAR", "SITE"))
 
 CPUE.w.sec.tpn = CPUE_wide_seconds(tpn_data) %>%
@@ -459,7 +458,7 @@ summary(lm(RWF_data$LENGTH~RWF_data$YEAR))
 
 ## CC 
 
-CC_data = all_data %>% filter(SPECIES == "WS") %>% 
+CC_data = all_data %>% filter(SPECIES == "RS") %>% 
   select(SPECIES, LENGTH,  SITE, YEAR) %>% 
   na.omit()
 
@@ -476,7 +475,19 @@ CC_data %>% group_by(YEAR) %>%
   summarise( st.d = sd(LENGTH)) %>%
   ggplot(aes(x = YEAR, y = st.d)) + geom_point()
 
-ggplot(,aes(y = CPUE.w.sec$CC, x = (years$YEAR))) + geom_point()
+ggplot(,aes(y = CPUE.w.sec$RS, x = years_bef$YEAR)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+RS = cbind(value = as.numeric(CPUE.w.sec$RS), YEAR= as.numeric(years_bef$YEAR)) %>% as.data.frame() %>% group_by(YEAR) %>%
+  summarise(RS= mean(value)) 
+
+plot(gln_LT_length$m, RS$m)
+length(gln_LT_length$m)
+length(RS$m)
+
+left_join(as.data.frame(gln_LT_length), as.data.frame(RS)) %>% 
+  ggplot(aes(x = RS, y = m)) + geom_point()
 
 ## Common Shiners 
 
@@ -505,6 +516,7 @@ summary(lm(CS_data$LENGTH~CS_data$YEAR))
 
 ## Gill Net (GLN) Data ---------------------------------------
 
+gln_LT_length = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% group_by(YEAR) %>% summarise(m = mean(LENGTH))
 
 gln_data %>% filter(SPECIES == "LT") %>% 
   ggplot(aes(x = YEAR, y = LENGTH)) + 
