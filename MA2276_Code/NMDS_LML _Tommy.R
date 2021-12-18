@@ -43,6 +43,12 @@ year_bin =  (data.frame(treat = c(2000:2019)) %>%
 #tpn_data = filter_data(water = "LML", gear = "TPN" ,
                        
                        #species = species) ### You need to figure out why this isnt workin in the filter data function!! 
+all_data = filter_data(water = "LML", gear = "BEF",
+                       gear_code = "NAF", 
+                       species = species) %>% 
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 2000)
+
+
 
 # Trap Net Data
 tpn_data = left_join(fish, sample, by = "YSAMP_N") %>% 
@@ -81,14 +87,17 @@ all_data = all_data %>% filter(SPECIES %nin% remove)
 #### NMDS$species = species
 #### NMDS$points = years
 
-CPUE.w.sec.a = CPUE_wide_seconds_avg(all_data) %>% 
-  column_to_rownames(., var = "YEAR") # Data setup
+CPUE.w.sec.a = ((CPUE_wide_seconds_avg(all_data) %>% 
+  column_to_rownames(., var = "YEAR"))) # Data setup
+  
+
+
 
 NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
 
-stressplot(NMDS) 
-plot(NMDS)
+stressplot(NMDS.cpue_year) 
+plot(NMDS.cpue_year)
 
 NMDS.cpue_year$species %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -118,25 +127,22 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   geom_text(size =4) + 
   stat_ellipse() +
   labs(color = "Year") + 
-  ggtitle("Years - averaged across sites")  + 
+  ggtitle("LOG+1: Years - averaged across sites")  + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
 # Day averaged NMDS across sites --------------
 
-CPUE.w.sec = CPUE_wide_seconds(all_data) %>%
+CPUE.w.sec = ((CPUE_wide_seconds(all_data) %>%
   unite("Group", c(YEAR, SITE)) %>% 
   column_to_rownames(., var = "Group") %>% 
   mutate(sumrow = rowSums(.)) %>%
   filter(sumrow>0) %>%
-  select(-sumrow)
+  select(-sumrow)))
 
-years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
-  separate(names, into = c("YEAR", "SITE"))
 
-color = as.character(year_bin) %>% as.factor() %>% as.numeric()
 
 NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
-             k=3) 
+             k=4) 
 
 stressplot(NMDS.cpue_siteyear)
 plot(NMDS.cpue_siteyear)
@@ -146,7 +152,8 @@ NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
   as.data.frame() %>%
   ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
   geom_text(size =4)+ 
-  ggtitle("Species: by site + year")
+  ggtitle("Log10(N+1) - No SMB")
+
 
 NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -167,10 +174,10 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
 ## Size structure NMDS --------------------------------------------------------
 
 l = all_data %>% select(SPECIES, LENGTH, SITE, YEAR) %>% 
-  na.omit() %>% mutate(LENGTH = log(LENGTH))
+  na.omit() %>% mutate(LENGTH = log(LENGTH)) %>% filter(YEAR != 2002)
 
 hist(log(l$LENGTH)) ##** 
-hist(log10(l$LENGTH))
+hist(log10(l$LENGTH+1))
 hist(sqrt(l$LENGTH))
 hist(l$LENGTH)
 
@@ -181,10 +188,16 @@ hist(l$LENGTH)
 ## Create bins
 length_range <- range(l$LENGTH)[1]:range(l$LENGTH)[2]
 i <- length_range[1] # starting interval for l.r
-bin_size = .1 ## Define this based on desired bin size
-l.r = na.omit(length_range[1:(i+bin_size)==(i+bin_size)]) # vector of weights to be binned
+bin_size = 20 ## Define this based on desired bin size
+l.r = na.omit(length_range[1:(i+bin_size)==(i+bin_size)]) # vector of lengths to be binned
 l.r[1] = length_range[1] - 1
 l.r[length(l.r)+1] = length_range[length(length_range)]
+
+## New bins 
+bin_size = .2
+length_range = seq(from =range(l$LENGTH)[1]-.1, to =  range(l$LENGTH)[2], by = bin_size)
+l.r = length_range
+l.r[length(l.r)+1] = range(l$LENGTH)[2] + .1
 
 ## Bin data frame 
 
@@ -232,30 +245,29 @@ NMDS.L$species %>% as.data.frame()  %>%
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>% 
-  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.L$species))) + 
-  geom_text(aes(color = as.numeric(rownames(NMDS.L$species))),size =4)+ 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year)) + 
+  geom_text(aes(color = Year),size =4)+ 
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
-  ggtitle("Size structure through time")
-
+  ggtitle("LOG: Size structure through time") 
 
 
 NMDS.L$species %>% as.data.frame()  %>%  
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>%
-  cbind(., year_bin) %>% 
+  cbind(., year_bin[-3]) %>% 
   ggplot(aes(x = MDS1,
              y = MDS2,
              label = Year,
-             color = as.character(year_bin))) + 
+             color = as.character(year_bin[-3]))) + 
   geom_text(size =3) + 
   stat_ellipse() + 
   labs(color = " Year Bin") + 
-  ggtitle("Size structure - site averaged") +
+  ggtitle("LOG:Size structure - site averaged") +
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-NMDS.L.site = metaMDS(length_frame_site, k = 2)
+NMDS.L.site = metaMDS(length_frame_site, k = 2, try = 100)
 
 NMDS.L.site$species %>% as.data.frame() %>% 
   cbind(., "ID" = rownames(.)) %>%
@@ -268,7 +280,7 @@ NMDS.L.site$species %>% as.data.frame() %>%
              y = MDS2,
              label = YEAR,
              color = as.character(YEAR))) + 
- # geom_point() +
+  #geom_point() +
   stat_ellipse(level = .9, size = 1) +
   labs(color = "Year") + 
   ggtitle("Size structure (by site) through time") +
@@ -286,7 +298,7 @@ length_frame %>%
   geom_smooth(se=F,method = 'lm') + 
   ylim(0,800) + ylab("Average Frenqency of Size")+ xlab("Length Bin") +
   labs(colour = "Year") + ggtitle("Average size frequency across time") + 
-  scale_color_discrete(name = "Year", labels = as.character(bins[-1]))
+  scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200)
 
 l %>%  
   mutate(length_bin = .bincode(LENGTH, l.r)) %>%
@@ -447,7 +459,7 @@ summary(lm(RWF_data$LENGTH~RWF_data$YEAR))
 
 ## CC 
 
-CC_data = all_data %>% filter(SPECIES == "CC") %>% 
+CC_data = all_data %>% filter(SPECIES == "WS") %>% 
   select(SPECIES, LENGTH,  SITE, YEAR) %>% 
   na.omit()
 
