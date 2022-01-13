@@ -78,7 +78,7 @@ rare = all_data %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "SMB") ## Remove smallmouth bass
+remove = c(stocked, rare$SPECIES, "RWF") ## Remove smallmouth bass + RWF (targetted in early 2000s)
 all_data = all_data %>% filter(SPECIES %nin% remove)
 
 # Site averaged NMDS across sites -----------------
@@ -117,7 +117,7 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   labs(color = "Year") + 
   ggtitle("Years - averaged across sites")
 
-NMDS.cpue_year$points %>% as.data.frame() %>% write_csv(file = "NMDS_points.csv")
+NMDS.cpue_year$points %>% as.data.frame() %>% mutate(Year = row.names(NMDS.cpue_year$points)) %>% write_csv(file = "NMDS_points.csv")
 
 NMDS.cpue_year$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -144,7 +144,7 @@ CPUE.w.sec = ((CPUE_wide_seconds(all_data) %>%
 
 
 NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
-             k=4) 
+             k=5) 
 
 stressplot(NMDS.cpue_siteyear)
 plot(NMDS.cpue_siteyear)
@@ -265,6 +265,7 @@ NMDS.L$species %>% as.data.frame()  %>%
 
 NMDS.L.site = metaMDS(length_frame_site, k = 2)
 
+
 NMDS.L.site$species %>% as.data.frame() %>% 
   cbind(., "ID" = rownames(.)) %>%
   as.data.frame() %>%
@@ -296,121 +297,9 @@ length_frame %>%
   labs(colour = "Year") + ggtitle("Average size frequency across time") + 
   scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200)
 
-l %>%  
-  mutate(length_bin = .bincode(LENGTH, l.r)) %>%
-  mutate(YEAR = .bincode(YEAR, c(1999, 2000, 2005, 2010, 2015, 2020))) %>% 
-  ggplot(aes(x = length_bin )) + 
-  geom_bar(aes(fill = as.character(YEAR))) +   
-  ggtitle("Size structure through time") +
-  labs(fill = "Year")  + 
-  scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
-  #+ 
-  #scale_y_continuous(trans='log10')
-
-
 
 
 ## Species specific analyses ---------------------------------------
-
-# Lake Trout 
-
-LT_data = tpn_data %>% filter(SPECIES == "LT") %>% 
-  select(YSAMP_N,DAY_N,SEASON,SPECIES, WATER, FISH_N,LENGTH, WEIGHT, SITE, YEAR,  EFFORT) %>% 
-  na.omit() ## make data frame
-
-# Average length across time
-LT_data %>% group_by(YEAR) %>%
-  summarise( AVG.Length = mean(LENGTH)) %>%
-  ggplot(aes(x = YEAR, y = AVG.Length)) + geom_point()
-# Length across time with trendline
-LT_data %>% 
-  ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
-  geom_smooth() + 
-  ggtitle("LT Length through time")
-# Standard deviation of length across time
-LT_data %>% group_by(YEAR) %>%
-  summarise( st.d = sd(LENGTH)) %>%
-  ggplot(aes(x = YEAR, y = st.d)) + geom_point()
-# lm of data 
-summary(lm(LT_data$LENGTH~LT_data$YEAR))
-# Setting up lake trout cpue 
-
-years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
-  separate(names, into = c("YEAR", "SITE"))
-
-years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
-  separate(names, into = c("YEAR", "SITE"))
-
-years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
-  separate(names, into = c("YEAR", "SITE"))
-
-CPUE.w.sec.tpn = CPUE_wide_seconds(tpn_data) %>%
-  unite("Group", c(YEAR, SITE)) %>% 
-  column_to_rownames(., var = "Group") %>% 
-  mutate(sumrow = rowSums(.)) %>%
-  filter(sumrow>0) %>%
-  select(-c(sumrow, NF))
-
-CPUE.w.sec.gln = CPUE_wide_seconds(gln_data) %>%
-  unite("Group", c(YEAR, SITE)) %>% 
-  column_to_rownames(., var = "Group") %>% 
-  mutate(sumrow = rowSums(.)) %>%
-  filter(sumrow>0) %>%
-  select(-c(sumrow, NF))
-
-
-## I am working through getting the different nmds analyses for the TPN of GLN data and working towards length distributions of the LT, RWF, ST, and CC
-ggplot(,aes(y = CPUE.w.sec$LT, x = years_bef$YEAR)) + geom_point() + ggtitle("BEF LT CPUE")
-ggplot(,aes(y = CPUE.w.sec.tpn$LT, x = years_tpn$YEAR)) + geom_point() + ggtitle("TPN LT CPUE")
-ggplot(,aes(y = CPUE.w.sec.gln$LT, x = years_gln$YEAR)) + geom_point() + ggtitle("GLN LT CPUE")
-
-
-#---------------------------------------
-NMDS.d=metaMDS(CPUE.w.sec.tpn, # Our community-by-species matrix
-               k=15) 
-
-stressplot(NMDS.d)
-plot(NMDS.d)
-
-## The plot for years here is by site and it looks terrible. Not worth looking at. 
-
-
-ordiplot(NMDS.d,type="n", main = 'Day Averaged - Species')
-
-for(i in unique(year_bin)) {
-  ordiellipse(NMDS.d$point[grep(i,year_bin),],draw="polygon",kind=c("sd"),
-              groups=year_bin[year_bin==i],col=color[grep(i,year_bin)],label=F) } 
-
-orditorp(NMDS.d,display="species",col="black",air=0.01)
-legend("bottomright", legend = names, col = unique(color), lty= rep(1, 5), title = "Year Breaks")
-
-
-
-ordiplot(NMDS.d,type="n")
-#Plot convex hulls with colors baesd on year_binment
-for(i in unique(year_bin)) {
-  ordihull(example_NMDS$point[grep(i,year_bin),],draw="polygon",
-           groups=year_bin[year_bin==i],col=colors[grep(i,year_bin)],label=F) } 
-orditorp(example_NMDS,display="species",col="red",air=0.01)
-orditorp(example_NMDS,display="sites",col=c(rep("green",5),
-                                            rep("blue",5)),air=0.01,cex=1.25)
-
-
-
-
-
-
-%>% 
-  column_to_rownames(., var = "YEAR") # Data setup
-NMDS=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
-             k=2, try = 100) 
-
-
-
-
-
-
-
 
 
 
@@ -482,12 +371,28 @@ ggplot(,aes(y = CPUE.w.sec$RS, x = years_bef$YEAR)) +
 RS = cbind(value = as.numeric(CPUE.w.sec$RS), YEAR= as.numeric(years_bef$YEAR)) %>% as.data.frame() %>% group_by(YEAR) %>%
   summarise(RS= mean(value)) 
 
-plot(gln_LT_length$m, RS$m)
-length(gln_LT_length$m)
-length(RS$m)
 
-left_join(as.data.frame(gln_LT_length), as.data.frame(RS)) %>% 
-  ggplot(aes(x = RS, y = m)) + geom_point()
+
+CPUE.w.sec %>% select(RS, LT) %>% 
+  mutate(YEAR = as.numeric(years_bef$YEAR)) %>% 
+  pivot_longer(c(RS, LT), names_to = "species") %>%
+  group_by(YEAR, species) %>% 
+  summarise(m = mean(value)) %>% ggplot(aes(x = YEAR, y = m, color = species)) + geom_point()
+
+LT_RS = left_join(as.data.frame(tpn_LT_length),
+                  as.data.frame(RS)) %>%
+  mutate(Year_bin = .bincode(YEAR, bins)) %>%
+  filter(YEAR != 2010) 
+
+LT_RS %>% ggplot(aes(x = m, y = RS, color = as.character(Year_bin))) + geom_point() + labs(color = "Year Bin")
+
+summary(lm(LT_RS$m ~ LT_RS$m))
++ stat_ellipse()
+
+%>% 
+  ggplot(aes(x = RS, y = m)) + geom_point() + geom_smooth(method = "lm")
+
+
 
 ## Common Shiners 
 
@@ -514,7 +419,101 @@ CS_data %>% group_by(YEAR) %>%
 summary(lm(CS_data$LENGTH~CS_data$YEAR))
 
 
+# . Lake Trout -------------------------------
+
+## . . TPN Data Lake Trout -------------------
+tpn_LT_length = tpn_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% group_by(YEAR) %>% summarise(m = mean(LENGTH))
+
+## Combining BEF and TPN data 
+LT_combined = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "GLN") %>% rbind(LT_data %>% select(LENGTH, YEAR) %>% mutate(gear = "TPN")) %>% rbind(all_data %>% filter(SPECIES =="LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "zBEF")) ## combining all data types
+
+LT_data = tpn_data %>% filter(SPECIES == "LT") %>% 
+  select(YSAMP_N,DAY_N,SEASON,SPECIES, WATER, FISH_N,LENGTH, WEIGHT, SITE, YEAR,  EFFORT) %>% 
+  na.omit() ## make data frame
+
+CPUE.w.sec.tpn = CPUE_wide_seconds(tpn_data) %>%
+  unite("Group", c(YEAR, SITE)) %>% 
+  column_to_rownames(., var = "Group") %>% 
+  mutate(sumrow = rowSums(.)) %>%
+  filter(sumrow>0) %>%
+  select(-c(sumrow, NF))
+
+CPUE.w.sec.gln = CPUE_wide_seconds(gln_data) %>%
+  unite("Group", c(YEAR, SITE)) %>% 
+  column_to_rownames(., var = "Group") %>% 
+  mutate(sumrow = rowSums(.)) %>%
+  filter(sumrow>0) %>%
+  select(-c(sumrow, NF))
+
+
+
+LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
+  geom_point() + geom_smooth() + ggtitle("LT Combined Data")
+
+
+
+years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+
+
+
+
+
+#---------------------------------------
+NMDS.d=metaMDS(CPUE.w.sec.tpn, # Our community-by-species matrix
+               k=15) 
+
+stressplot(NMDS.d)
+plot(NMDS.d)
+
+## The plot for years here is by site and it looks terrible. Not worth looking at. 
+
+
+ordiplot(NMDS.d,type="n", main = 'Day Averaged - Species')
+
+for(i in unique(year_bin)) {
+  ordiellipse(NMDS.d$point[grep(i,year_bin),],draw="polygon",kind=c("sd"),
+              groups=year_bin[year_bin==i],col=color[grep(i,year_bin)],label=F) } 
+
+orditorp(NMDS.d,display="species",col="black",air=0.01)
+legend("bottomright", legend = names, col = unique(color), lty= rep(1, 5), title = "Year Breaks")
+
+
+
+ordiplot(NMDS.d,type="n")
+#Plot convex hulls with colors baesd on year_binment
+for(i in unique(year_bin)) {
+  ordihull(example_NMDS$point[grep(i,year_bin),],draw="polygon",
+           groups=year_bin[year_bin==i],col=colors[grep(i,year_bin)],label=F) } 
+orditorp(example_NMDS,display="species",col="red",air=0.01)
+orditorp(example_NMDS,display="sites",col=c(rep("green",5),
+                                            rep("blue",5)),air=0.01,cex=1.25)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Gill Net (GLN) Data ---------------------------------------
+
 
 gln_LT_length = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% group_by(YEAR) %>% summarise(m = mean(LENGTH))
 
@@ -533,19 +532,24 @@ gln_data %>% group_by(SPECIES) %>%
 
 
 
+## Rate of Change -------------------------
 
-## Combining BEF and TPN data 
-LT_combined = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "GLN") %>% rbind(LT_data %>% select(LENGTH, YEAR) %>% mutate(gear = "TPN")) %>% rbind(all_data %>% filter(SPECIES =="LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "zBEF"))
-
-LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
-  geom_point() + geom_smooth() + ggtitle("LT Combined Data")
-LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
-  geom_jitter() + ggtitle("LT Combined Data")+ geom_smooth()
-
-all_data %>% filter(SPECIES == "LT")
+## Taking the next year and subtracting it
 
 
-## IF we havent measured the size of a fish - they measure every year, but they don't measure every fish - look at a way to resample that size distribution for the year. Use distribution and randomly sample it. 
+roc = CPUE.w.sec.a %>% mutate(across(BB:WS, ~ .x - lag(.x, default = first(.x)))) 
+  
+roc %>%  mutate(year = row.names(.)) %>% pivot_longer(cols = -year, names_to = "species") %>% ggplot(aes(x = year, y = value, color = species)) +
+  geom_point() + ylab("Change in CPUE") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  facet_wrap(~species)
+
+roc
+
+anova(roc$MM)
+
+
+2
 
 ## NMDS for size structure - bin by size class, across time (communities) - size class of each fish species would be the species - no actualy, do the whole community, so each species is a size bin (abundance within the bin) tells you something about ecotrophic efficiency. Do for both lake trout from the gill net and also the whole community from the BEF. 
 ## mess around with the CPUE through time analysis, is there some first derivative we could do? look that up 

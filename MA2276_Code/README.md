@@ -1,6 +1,6 @@
 # Montana's Code Repository 
 
-Welcome to my code repository! Feel free to use any of the code here. Most of it has been generated for the purpose of anayzing isotope and community data. I tend to keep my own data in the `data` folder and have saved graphics in the `graphics` folder. 
+Welcome to my code repository! Feel free to use any of the code here. Most of it has been generated for the purpose of anayzing isotope and community data. I tend to keep my own data in the `data` folder and have saved graphics in the `graphics` folder. All scripts are designed to have the project directory set as their working directory. 
 
 <br>
 
