@@ -16,10 +16,11 @@ species = "SMB" ## This is set up for SMB, but could be changed by altering this
 # Join data using individual fish IDs (FISH_N)
 smb = left_join(age,fish, by = "FISH_N") %>% 
   left_join(samp) %>%
-  select( YSAMP_N, FISH_N, SPECIES, LENGTH, WEIGHT, FINAL_AGE, WATER, YEAR) %>%
+  select( YSAMP_N, FISH_N, SPECIES, LENGTH, WEIGHT, FINAL_AGE, WATER, YEAR, MONTH) %>%
   mutate(ratio = FINAL_AGE/LENGTH) %>%
   filter(SPECIES == species, 
-         WATER == lake)
+         WATER == lake, 
+         MONTH > 8)
 
 # Histogram of lengths 
 hist(smb$FINAL_AGE, 
