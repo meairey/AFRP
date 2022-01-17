@@ -295,9 +295,19 @@ length_frame %>%
   geom_smooth(se=F,method = 'lm') + 
   ylim(0,800) + ylab("Average Frenqency of Size")+ xlab("Length Bin") +
   labs(colour = "Year") + ggtitle("Average size frequency across time") + 
-  scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200)
+  scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200) + facet_wrap(~YEAR)
 
 
+length_frame %>%
+  mutate(YEAR_bin = .bincode(YEAR, bins)) %>%
+  ggplot(aes(x = length_bin,
+             y = length_count, 
+             fill = as.character(YEAR_bin))) +
+  geom_bar(stat = 'identity') + 
+  xlim(0,18) + ylab("Length Frequency") +
+  xlab("Length Bin") + 
+  facet_wrap(~YEAR_bin) + 
+  scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
 
 ## Species specific analyses ---------------------------------------
 
@@ -518,46 +528,66 @@ summary(lm(LT_RS$m ~ LT_RS$m))
 ## Taking the next year and subtracting it
 
 ## Using averaged sites
+# Create data frame
 roc = CPUE.w.sec.a %>% 
   mutate(across(BB:WS, ~ .x - lag(.x, default = first(.x)))) %>%
   mutate(year_bin = .bincode(rownames(.), bins)) %>%  mutate(year = row.names(.)) %>%
   pivot_longer(cols = c(-year, -year_bin), names_to = "species") 
-  
+# Plot ROC data, breaking up by species
 roc %>%  
-  ggplot(aes(x = year, y = value, color = species)) +
+  ggplot(aes(x = as.numeric(year), y = value, color = species)) +
   geom_point() + ylab("Change in CPUE") + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  facet_wrap(~species)
-
-roc %>% filter(species == "CC") %>% group_by(year_bin) %>%
-  summarise(aov = summary(aov(value~year_bin, data = .)))
-
+  xlab("Year") +
+  facet_wrap(~species) + 
+  theme(legend.position="none")
+# Running an anova across year bins for each species 
+roc %>% mutate(value = abs(value), year_bin = as.character(year_bin)) %>% 
+  filter(year_bin != "1") %>%
+  group_by(species) %>% 
+  summarise(ANOVA = summary(aov(value ~ year_bin))[[1]]$`Pr(>F)`[1]) 
+  
  
-anova(roc$MM)
-
-## Trying to do site specific across time
-CC_roc = roc %>% filter(species == "WS") %>%
+## ROC for length -----------------------------------
+# Create data table for length
+ROC_length = l %>% group_by(SPECIES, YEAR) %>%
+  summarise(avg_length = mean(LENGTH)) %>% 
+  ungroup() %>% 
+  group_by(SPECIES) %>%
+  mutate(change = avg_length - lag(avg_length,
+                                   default = first(avg_length))) %>%
+  mutate(year_bin = .bincode(YEAR, bins))
+# Plot results broken up by species - colored for aesthetics 
+ROC_length %>% 
+  ggplot(aes(x = YEAR,
+             y = change,
+             color = SPECIES)) +
+  geom_point() + 
+  facet_wrap(~SPECIES) + 
+  theme(legend.position = "none") + 
+  ylab("Change in Length") + 
+  xlab("Year")
+# Run anova across year bins for each species
+ROC_length%>%
+  filter(year_bin != 1) %>%
+  ungroup() %>% 
+  group_by(SPECIES) %>%
   mutate(year_bin = as.character(year_bin)) %>%
-  filter(year_bin != "1") %>% 
-  mutate(value = abs(value))
-
-CC_roc %>% group_by(year_bin) %>% 
-  summarize(sd_CC = sd(value))
-
-summary(aov( CC_roc$year_bin~CC_roc$value))
+  summarise(ANOVA = summary(aov(avg_length ~ (year_bin)))[[1]]$`Pr(>F)`[1])
 
 
-x = (CC_roc %>% filter(year_bin == 2))$value
-y = (CC_roc %>% filter(year_bin == 4))$value
+## Unfinished / Notes ------------------------------------------
 
-t.test(x,y)
+## Trying to do site specific across time- I stopped doing this can pick back up if Tommy thinks is worth it 
+
 # Shifting window bins. Bin 1 = yr 1-4, Bin 2 = yr 2-5, Bin 3 = yr 3 -6
 ## Note - if I can't get this to work, could maybe bin the rate of change within years and then do some anova across bins
 CPUE.w.sec %>% 
   mutate(year = years_bef$YEAR, site = years_bef$SITE) %>%
   select(CC,  site) %>% 
-
+  
   head()
+
 
 ## NMDS for size structure - bin by size class, across time (communities) - size class of each fish species would be the species - no actualy, do the whole community, so each species is a size bin (abundance within the bin) tells you something about ecotrophic efficiency. Do for both lake trout from the gill net and also the whole community from the BEF. 
 ## mess around with the CPUE through time analysis, is there some first derivative we could do? look that up 
