@@ -4,9 +4,45 @@ library(dplyr)
 library(tidyr)
 library(tidyverse)
 library(ggplot2)
+library(lubridate)
+
 # Defining Data Sheets ----- 
 fish = read.csv("MA2276_Code/Data/2021_Measurement.csv")
-sample = read.csv("MA2276_Code/Data/2021_Sample.csv")
+sample = read.csv("MA2276_Code/Data/2021_Sample.csv") %>%
+  mutate(DATE_COL = mdy(DATE_COL)) %>%
+  mutate(DATE_SET = mdy(DATE_SET)) %>%
+  mutate(DAYS = DATE_COL - DATE_SET) %>%
+  separate(TIME_START, into = c("hour","min")) %>%
+  mutate(min = round(as.numeric(min)/60*100)) %>%
+  unite(TIME_START, c(hour, min), sep = ".") %>%
+  separate(TIME_END, into = c("hour","min")) %>%
+  mutate(min = round(as.numeric(min)/60*100)) %>%
+  unite(TIME_END, c(hour, min), sep = ".") %>%
+  mutate(TIME_START = as.numeric(TIME_START)) %>%
+  mutate(TIME_END = as.numeric(TIME_END)) %>%
+  mutate(HOURS = TIME_END - TIME_START) %>% 
+  mutate(DAYS = case_when(
+    .$DAYS == 1 ~ 24,
+    .$DAYS == 0 ~ 0))
+
+
+sample = sample %>% 
+  mutate(effort_soak = DAYS + HOURS)
+
+## add 
+# Trying to work through CPUE 
+
+(sample$TIME_END) - sample$TIME_START
+
+
+sample = sample %>% 
+
+  
+
+
+  
+  
+
 #sites = read.csv("SITES.csv")
 
 # Join/Filter ----
@@ -33,7 +69,10 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
   # Aggregate months into seasons
   mutate(SEASON = as.factor(.bincode(MONTH, c(0,7,8, 11))))  %>%
   # Recode the bins for visualizations
-  mutate(SEASON = recode_factor(.$SEASON, "1" = "spring", "2"="summer","3" = "fall"))
+  mutate(SEASON = recode_factor(.$SEASON, "1" = "spring", "2"="summer","3" = "fall")) %>%
+  mutate(SITE = parse_number(SITE_N)) %>%
+  filter(SITE != 4)
+  
   
 ## Visualizations ---- 
   
@@ -53,31 +92,10 @@ for(i in unique(all_data$WATER)){
 }
   
 # Visualize the communities from each site + lake by season 
-i = 1
-for(i in unique(all_data$WATER)){
-  for(h in as.character(unique(all_data$SEASON))){
-    g = all_data %>% 
-      filter(WATER == i, SEASON == h) %>%
-      group_by(SEASON, YEAR, SPECIES, SITE_N) %>%
-      count()%>%
-      ggplot(aes(x = SPECIES, y = n)) + 
-      geom_bar(stat="identity", position=position_dodge()) + 
-      theme(axis.text.x=element_text(angle=90,hjust=1),
-            text = element_text(size=12)) + 
-      ggtitle(paste(i, "Community")) + 
-      facet_wrap(~ SITE_N)
-    
-    print(g)
-  }
-}
-  
-+ 
-  facet_wrap(~ SITE_N)  
-
-
 for(i in unique(all_data$WATER)){
   
-  subset_data = all_data %>% filter(WATER == i)
+  subset_data = all_data %>% filter(WATER == i) %>% 
+    mutate(SITE_N = parse_number(SITE_N))
     
     for(h in unique(subset_data$SEASON)){
       c = subset_data %>%
@@ -91,9 +109,6 @@ for(i in unique(all_data$WATER)){
         ggtitle(paste(i, "Community", h)) + 
         facet_wrap(~ SITE_N)
       
-      
-      
-      
       print((c))
   }
 }
@@ -103,7 +118,7 @@ for(i in unique(all_data$WATER)){
 
   
 
-
+## Old code - probably delete -----------------
 
 all %>% ggplot(aes(x = SPECIES, y = n, fill = WATER)) +
   geom_bar(stat="identity", position=position_dodge()) + 
