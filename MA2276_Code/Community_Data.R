@@ -23,35 +23,17 @@ sample = read.csv("MA2276_Code/Data/2021_Sample.csv") %>%
   mutate(HOURS = TIME_END - TIME_START) %>% 
   mutate(DAYS = case_when(
     .$DAYS == 1 ~ 24,
-    .$DAYS == 0 ~ 0))
-
-
-sample = sample %>% 
-  mutate(effort_soak = DAYS + HOURS)
-
-## add 
-# Trying to work through CPUE 
-
-(sample$TIME_END) - sample$TIME_START
-
-
-sample = sample %>% 
-
-  
-
-
-  
-  
-
-#sites = read.csv("SITES.csv")
-
+    .$DAYS == 0 ~ 0)) # for some reason this line of code appears to break the pipeline?
+sample = sample %>% mutate(
+  effort_soak = DAYS + HOURS
+)
 # Join/Filter ----
 
 # Data is filtered to select only fish and split out several columns
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
-  filter(WATER %in% c("TPP","LOP","HRM_FOR","PRL","HRM_BW2"),
+  filter(WATER %in% c("TPP","LOP","HRM_FOR","PRL","HRM_BW2", "COM"),
          ### single out or remove specific species
-         (SPECIES != "NF" & SPECIES != ""),
+         (SPECIES != ""),
          SPECIES != "PAINTED TURTLE",
          SPECIES != "NEWT", 
          SPECIES != "CRAY", 
@@ -60,12 +42,13 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
          SPECIES != "DRAGONFLY", 
          SPECIES != "LEECH", 
          SPECIES != "MOLE SALAMANDER LARVAE", 
-         SPECIES != "ODONATA") %>%
-  select(YSAMP_N, SPECIES, LENGTH, DATE_COL, SITE_N) %>%
+         SPECIES != "ODONATA", 
+         SPECIES != "STICKBUG") %>%
+  select(YSAMP_N, SPECIES, LENGTH, DATE_COL, SITE_N, DAYS, effort_soak, GEAR_CODE) %>%
   # Split out date to get at month collected
-  separate(DATE_COL, into = c("MONTH","DAY","YEAR"), sep = "/") %>%
+  separate(DATE_COL, into = c("YEAR","MONTH","DAY"), sep = "-") %>%
   # Split out YSAMP_N to be able to select year and water
-  separate(YSAMP_N, into = c("GEAR","WATER","YEAR","DSAMP")) %>%
+  separate(YSAMP_N, into = c("GEAR","WATER","YEAR","YSAMP")) %>%
   # Aggregate months into seasons
   mutate(SEASON = as.factor(.bincode(MONTH, c(0,7,8, 11))))  %>%
   # Recode the bins for visualizations
@@ -73,10 +56,103 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
   mutate(SITE = parse_number(SITE_N)) %>%
   filter(SITE != 4)
   
+
+## CPUE by SITE -----
+
+night_sets_sites %>% filter(WATER == "PRL", SEASON == "fall")  
+## Need to add in D_SAMP
+
+night_sets_sites = all_data %>%
+  filter(DAYS >= 24) %>%
+  select(MONTH, DAY, YEAR,
+         SEASON, WATER, 
+         SITE, SPECIES,
+         LENGTH,  effort_soak,YSAMP, GEAR_CODE) %>%
+  group_by(WATER, SEASON, MONTH, DAY, YEAR, SITE, SPECIES, YSAMP,effort_soak, GEAR_CODE) %>%
+  count() %>%
+  ungroup() %>% 
+  select(-MONTH) %>%
+  group_by(WATER, SITE, YEAR) %>%
+  complete(.,nesting(SEASON, GEAR_CODE, effort_soak, DAY, YSAMP), SPECIES) %>%
+  replace_na(list(n = 0, n = 0)) %>%
+  group_by(WATER, SEASON,YEAR, SITE, SPECIES) %>% 
+  summarise_at(c("n", "effort_soak"), sum) %>%
+  mutate(CPUE_hour = n / effort_soak) %>%
+  select(c(-n, -effort_soak))
+
+## ++ Visualization CPUE SITE ----
+
+for(i in unique(all_data$WATER)){
   
-## Visualizations ---- 
+  subset_data = night_sets_sites %>% filter(WATER == i) 
+  
+  for(h in unique(subset_data$SEASON)){
+    c = subset_data %>%
+      filter(SEASON == h) %>%
+      ggplot(aes(x = SPECIES, y = CPUE_hour)) + 
+      geom_bar(stat="identity", position=position_dodge()) + 
+      theme(axis.text.x=element_text(angle=90,hjust=1),
+            text = element_text(size=12)) + 
+      ylim(0,.45) +
+      ylab(paste(i,h))+
+      facet_wrap(~ SITE)
+    
+    print((c))
+  }
+}
+
+
+## AVG CPUE ----- 
+
+# YSAMP
+night_sets_cpueavg =  all_data %>%
+  filter(DAYS >= 24) %>%
+  select(MONTH, DAY, YEAR,
+         SEASON, WATER, 
+         SITE, YSAMP,SPECIES,
+         LENGTH,  effort_soak, GEAR_CODE) %>%
+  group_by(WATER, SEASON,
+           MONTH, DAY, YSAMP, 
+           YEAR, SITE,
+           SPECIES, effort_soak, 
+           GEAR_CODE) %>%
+  count() %>%
+  ungroup() %>% 
+  select(-MONTH) %>%
+  group_by(WATER, YEAR) %>%
+  complete(.,nesting(SEASON, SITE, GEAR_CODE, effort_soak, DAY, YSAMP), SPECIES) %>%
+  replace_na(list(n = 0, n = 0)) %>%
+  group_by(WATER, SEASON,YEAR, SPECIES) %>% 
+  summarise_at(c("n", "effort_soak"), sum) %>%
+  mutate(CPUE_hour = n / effort_soak) %>%
+  select(c(-n, -effort_soak)) %>%
+  filter(SPECIES != "NF")
+
+
+# ++ Visualize the communities from each lake by season ----
+for(i in unique(night_sets_cpueavg$WATER)){
+  g = night_sets_cpueavg %>% 
+    filter(WATER == i) %>%
+    group_by(SEASON, YEAR, SPECIES) %>%
+    summarise(CPUE = sum(CPUE_hour)) %>%
+    ggplot(aes(x = SPECIES, y = CPUE)) + 
+    geom_bar(stat="identity", position=position_dodge()) + 
+    theme(axis.text.x=element_text(angle=90,hjust=1),
+          text = element_text(size=12)) + 
+    ylim(0,.45) +
+    facet_wrap(~ SEASON) + 
+    ggtitle(paste(i, "Community"))
+  print(g)
+}
+
+
+
+
+## all_data visualizations ---- 
+
   
 # Visualize the communities from each lake by season 
+# This is the raw count of abundance across all traps
 for(i in unique(all_data$WATER)){
   g = all_data %>% 
     filter(WATER == i) %>%
@@ -91,6 +167,10 @@ for(i in unique(all_data$WATER)){
   print(g)
 }
   
+## with night_sets 
+
+
+
 # Visualize the communities from each site + lake by season 
 for(i in unique(all_data$WATER)){
   
@@ -118,45 +198,3 @@ for(i in unique(all_data$WATER)){
 
   
 
-## Old code - probably delete -----------------
-
-all %>% ggplot(aes(x = SPECIES, y = n, fill = WATER)) +
-  geom_bar(stat="identity", position=position_dodge()) + 
-  theme(axis.text.x=element_text(angle=90,hjust=1),
-        text = element_text(size=18)) + 
-  ggtitle("Summer 21")+ 
-  ylab("# Individuals Captured")
-
-all %>% ggplot(aes(x = WATER, y = n, fill = SPECIES)) +
-  geom_bar(stat="identity", position=position_dodge()) + 
-  theme(axis.text.x=element_text(angle=90,hjust=1),
-        text = element_text(size=18)) + 
-  ggtitle("Summer 21")+ 
-  ylab("# Individuals Captured") + 
-  labs(fill = "Species")
-
-
-
-HRM = all_data %>%
-  group_by(SPECIES, SITE_N) %>%
-  count() %>% as.data.frame() %>%
-  complete(SPECIES, SITE_N) %>% 
-  replace_na(list(CPUE_seconds = 0, n = 0))
-
-HRM %>% ggplot(aes(x = SPECIES, y = n, fill = SITE_N)) +
-  geom_bar(stat="identity", position=position_dodge()) + 
-  theme(axis.text.x=element_text(angle=90,hjust=1),
-        text = element_text(size=18)) + 
-  ggtitle("Heron Marsh")+ 
-  ylab("# Individuals Captured") + 
-  labs(fill = 'Site') + 
-  xlab("Species")
-
-HRM %>% ggplot(aes(y = n, x = SITE_N, fill = SPECIES)) +
-  geom_bar(stat="identity", position=position_dodge()) + 
-  theme(axis.text.x=element_text(angle=90,hjust=1),
-        text = element_text(size=18)) + 
-  ggtitle("Heron Marsh")+ 
-  ylab("# Individuals Captured") + 
-  labs(fill = 'Site') + 
-  xlab("Species")
