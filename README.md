@@ -6,7 +6,7 @@
 
 <br>
 
-All master code is kept in the folder 'AFRP Master Code'. Personal code relevant to the program can be stored in your own personal folders. For example: 'Montana's Code'. 
+All master code is kept in the folder 'AFRP Master Code'. Personal code relevant to the program can be stored in your own personal folders. For example: `MA2276_Code`. 
 
 <br>
 
