@@ -68,17 +68,18 @@ CPUE_long_seconds_habitat = function(data_input){
     replace_na(list(CPUE_seconds = 0, n = 0))
 }
 
+
 ## CPUE_wide does not average across habitat
 CPUE_wide_seconds_avg = function(data_input){
-  data_input %>%
+cat =   data_input %>%
   select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
          FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
   group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
   count() %>% ## Abundance per year, site, species
-  mutate(CPUE_seconds = n / EFFORT) %>%
   ungroup() %>%
-  complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+  complete(., nesting(WATER, YEAR, DAY_N, SITE, EFFORT, HAB_1), SPECIES) %>%
   replace_na(list(CPUE_seconds = 0, n = 0)) %>%
+  mutate(CPUE_seconds = n / EFFORT) %>%
   select(-n) %>%
   mutate(across(everything(), ~replace_na(.x,0))) %>%
   as.data.frame() %>% select(SPECIES,
@@ -98,10 +99,9 @@ CPUE_wide_seconds = function(data_input){ ## I removed HAB_1 from the select for
     count() %>% ## Abundance per year, site, species
     mutate(CPUE_seconds = n / EFFORT) %>%
     ungroup() %>%
-    complete(WATER, YEAR,DAY_N, SITE,SPECIES) %>%
+    complete(., nesting(WATER, YEAR, DAY_N, SITE, EFFORT), SPECIES) %>%
     replace_na(list(CPUE_seconds = 0, n = 0)) %>%
     select(-n) %>%
-    mutate(across(everything(), ~replace_na(.x,0))) %>%
     as.data.frame() %>% select(SPECIES,
                                CPUE_seconds, 
                                SITE, DAY_N, YEAR) %>% 

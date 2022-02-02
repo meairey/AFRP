@@ -18,7 +18,7 @@ setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 
 ## Functions source -----------
 source("AFRP_Master_Code/AFRP_Functions.R")
-
+sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 
 ## Graphics setup -------
 
@@ -26,9 +26,10 @@ source("AFRP_Master_Code/AFRP_Functions.R")
 
 ## Year Bins for NMDS plotting 
 ### At this point - playing around with 5-6yr bins
-bins = c(1999, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
+bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
+bins = c(1996,2000,2007,2011,2017,2019)
 names = bins[-1] ## This goes into legends for visualization 
-year_bin =  (data.frame(treat = c(2000:2019)) %>%
+year_bin =  (data.frame(treat = c(1998:2019)) %>%
                separate(treat, into = c("Year", "Site")) %>% 
                mutate(Year = .bincode(as.numeric(.$Year),
                                       ## Define desired breaks below
@@ -49,7 +50,7 @@ year_bin =  (data.frame(treat = c(2000:2019)) %>%
 BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
                        gear_code = "NAF", 
                        species = species) %>% 
-  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 2000)
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998)
 
 # Trap Net Data
 tpn_data = left_join(fish, sample, by = "YSAMP_N") %>% 
@@ -76,7 +77,7 @@ gln_data = left_join(fish, sample, by = "YSAMP_N") %>%
 
 `%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
 rare_threashold = 50 ## change this based on preference
-rare = BEF_data %>% group_by(SPECIES) %>% 
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
@@ -126,9 +127,9 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   mutate(Year_bin = .bincode(Year, bins)) %>% 
   ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
   geom_text(size =4) + 
-  stat_ellipse() +
+  stat_ellipse(level = .9) +
   labs(color = "Year") + 
-  ggtitle("LOG+1: Years - averaged across sites")  + 
+  ggtitle("Years - averaged across sites")  + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
 # Day averaged NMDS across sites --------------
@@ -143,7 +144,7 @@ CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
 
 # Running NMDS
 NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
-             k=5) 
+             k=3) 
 
 # Diagnostic plots 
 stressplot(NMDS.cpue_siteyear)
@@ -252,18 +253,18 @@ NMDS.L$species %>% as.data.frame()  %>%
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>%
-  cbind(., year_bin[-3]) %>% 
+  cbind(., year_bin[-5]) %>% 
   ggplot(aes(x = MDS1,
              y = MDS2,
              label = Year,
-             color = as.character(year_bin[-3]))) + 
+             color = as.character(year_bin[-5]))) + 
   geom_text(size =3) + 
   stat_ellipse() + 
   labs(color = " Year Bin") + 
   ggtitle("SQRT:Size structure - site averaged") +
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-NMDS.L.site = metaMDS(length_frame_site, k = 2)
+NMDS.L.site = metaMDS(length_frame_site, k =12) ##  No convergence on by site 
 
 
 NMDS.L.site$species %>% as.data.frame() %>% 
@@ -287,7 +288,7 @@ NMDS.L.site$species %>% as.data.frame() %>%
 ## Graph length frequency across time ------------------
 
 length_frame %>%  
-  mutate(YEAR = .bincode(YEAR, c(1999, 2000, 2005, 2010, 2015, 2020))) %>% 
+  mutate(YEAR = .bincode(YEAR, c(1996, 2000, 2005, 2010, 2015, 2020))) %>% 
   group_by(YEAR, length_bin) %>%
   summarise(length_count_average = mean(length_count)) %>%
   ggplot(aes(x = length_bin, y = length_count_average, colour= as.character(YEAR))) +
@@ -309,6 +310,29 @@ length_frame %>%
   facet_wrap(~YEAR_bin) + 
   scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
 
+## Ridge line plots 
+install.packages("ggridges")
+library(ggridges)
+ggplot(l, aes(x = LENGTH, y = as.character(YEAR), fill = stat(x))) + 
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis_c(name = "Length", option = "C") +
+  theme(legend.position = "none") +
+  xlim(0,350) + 
+  ylab("Year") + 
+  xlab("Length")
+target_species =c("WS", "RS","LT", "CS") 
+for(i in target_species){
+  k = l %>% filter(SPECIES == i) %>%
+  ggplot(aes(x = LENGTH, y = as.character(YEAR), fill = stat(x))) + 
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis_c(name = "Length", option = "C") +
+  theme(legend.position = "none") +
+  ylab("Year") + 
+  xlab("Length") + 
+    ggtitle(paste(i))
+  plot(k)
+}
+
 ## Species specific analyses ---------------------------------------
 
 
@@ -327,6 +351,9 @@ ST_data %>%
   ggplot(aes(x = YEAR, y =LENGTH)) + geom_point() + 
   geom_smooth() + 
   ggtitle("ST Length through time")
+
+# BEF - CPUE through years
+
 
 
 summary(lm(ST_data$LENGTH~ST_data$YEAR))
@@ -391,6 +418,7 @@ CS_data %>% group_by(YEAR) %>%
   geom_line()
 
 
+
 # . Lake Trout -------------------------------
 
 ## Combining BEF, GLN, and TPN data 
@@ -428,10 +456,38 @@ LT_combined %>% ggplot(aes(x = YEAR, y = LENGTH, col = gear)) +
 
 
 
+## Target species for CPUE --------------
+
+CPUE.w.sec %>% cbind(years_bef) %>% as.data.frame() %>%
+  pivot_longer(colnames(CPUE.w.sec), names_to = "species") %>% 
+  filter(species %in% target_species) %>%
+  ggplot(aes(y = value, x = as.numeric(YEAR))) + geom_point() +
+  scale_y_continuous(trans='log2') +
+  ylab(paste("CPUE")) + xlab("Year") +  
+  theme(plot.margin = margin(.2, .6, .2, .2, "cm")) + 
+  facet_wrap(~species)
 
 
+# Lt combined BEF + TPN data 
+CPUE.w.sec.lt = ((CPUE_wide_seconds(tpn_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow))) %>% 
+  select(LT) %>%
+  mutate(years = years_tpn$YEAR) %>%
+  mutate(Gear = "TPN") %>% 
+  rbind(cbind(LT = CPUE.w.sec$LT,
+              years = years_bef$YEAR,
+              Gear = rep("BEF", length(years_bef$YEAR))))
 
-
+CPUE.w.sec.lt %>% ggplot(aes(x = as.numeric(years), 
+                             y = (as.numeric(LT)), col = Gear)) +
+  geom_jitter() + 
+  scale_y_continuous(trans='log10') + 
+  ylab("LT CPUE")  + 
+  xlab("Year")
 
 #---------------------------------------
 NMDS.tpn=metaMDS(CPUE.w.sec.tpn, # Our community-by-species matrix
@@ -576,24 +632,30 @@ ROC_length%>%
   summarise(ANOVA = summary(aov(avg_length ~ (year_bin)))[[1]]$`Pr(>F)`[1])
 
 
-## Unfinished / Notes ------------------------------------------
-
-## Trying to do site specific across time- I stopped doing this can pick back up if Tommy thinks is worth it 
-
-# Shifting window bins. Bin 1 = yr 1-4, Bin 2 = yr 2-5, Bin 3 = yr 3 -6
-## Note - if I can't get this to work, could maybe bin the rate of change within years and then do some anova across bins
-CPUE.w.sec %>% 
-  mutate(year = years_bef$YEAR, site = years_bef$SITE) %>%
-  select(CC,  site) %>% 
-  
-  head()
 
 
-## NMDS for size structure - bin by size class, across time (communities) - size class of each fish species would be the species - no actualy, do the whole community, so each species is a size bin (abundance within the bin) tells you something about ecotrophic efficiency. Do for both lake trout from the gill net and also the whole community from the BEF. 
-## mess around with the CPUE through time analysis, is there some first derivative we could do? look that up 
-## response time - think about it but what is the inflection point in the curve where the species start to show some response. 
-## Then could we plot response timing and body size/age at maturation 
-## Gillnet or trapnets 
+### Cluster analysis ----- 
+
+CPUE.w.sec.a
+distance = dist(CPUE.w.sec.a, method = "euclidian")
+mydata.hclust = hclust(distance)
+plot(mydata.hclust,hang = -1, main='Default from hclust')
 
 
+## Network analysis ------ 
+install.packages("netassoc")
+library(netassoc)
+m_obs = (CPUE.w.sec.a) * 1000
 
+dat = unlist(c(CPUE.w.sec.a)) * 1000
+
+m_nul <- (matrix(sample(dat),
+                      ncol=ncol(m_obs),nrow=nrow(m_obs)))
+
+n <- make_netassoc_network(m_obs, m_nul,
+                           method="partial_correlation",
+                           args=list(method="shrinkage"), # for alternative estimators see ?partial_correlation
+                           p.method='fdr', 
+                           numnulls=100, 
+                           plot=TRUE,
+                           alpha=0.05)
