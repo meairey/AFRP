@@ -7,6 +7,7 @@ library(ggplot2)
 library(lubridate)
 
 # Defining Data Sheets ----- 
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 fish = read.csv("MA2276_Code/Data/2021_Measurement.csv")
 sample = read.csv("MA2276_Code/Data/2021_Sample.csv") %>%
   mutate(DATE_COL = mdy(DATE_COL)) %>%
@@ -31,7 +32,7 @@ sample = sample %>% mutate(
 
 # Data is filtered to select only fish and split out several columns
 all_data = left_join(fish, sample, by = "YSAMP_N") %>% 
-  filter(WATER %in% c("TPP","LOP","HRM_FOR","PRL","HRM_BW2", "COM"),
+  filter(WATER %in% c("TPP","LOP","HRM_1","HRM_2", "HRM_3","HRM_4","WFL", "COM","PRL","ETL"),
          ### single out or remove specific species
          (SPECIES != ""),
          SPECIES != "PAINTED TURTLE",
@@ -54,12 +55,13 @@ all_data = left_join(fish, sample, by = "YSAMP_N") %>%
   # Recode the bins for visualizations
   mutate(SEASON = recode_factor(.$SEASON, "1" = "spring", "2"="summer","3" = "fall")) %>%
   mutate(SITE = parse_number(SITE_N)) %>%
-  filter(SITE != 4)
+  filter(SITE != 4) %>% 
+  mutate(LENGTH = as.numeric(LENGTH))
   
 
 ## CPUE by SITE -----
 
-night_sets_sites %>% filter(WATER == "PRL", SEASON == "fall")  
+
 ## Need to add in D_SAMP
 
 night_sets_sites = all_data %>%
@@ -194,7 +196,73 @@ for(i in unique(all_data$WATER)){
 }
 
 
+## Analysis of size structure -------
 
 
+all_data %>% 
+  ggplot(aes(x = SPECIES, y = as.numeric(LENGTH))) + 
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=01),
+                     text = element_text(size=12)) +
+  stat_summary(
+    geom = "point",
+    fun= "median",
+    col = "red",
+    size = 2,
+    shape = 16,
+    fill = "red") +
+  facet_wrap(~WATER) + 
+  ylab("Length (mm)") + 
+  xlab("Species")
   
+
+all_data %>% filter(SPECIES == "CC") %>% 
+  ggplot(aes(x = SPECIES, y = as.numeric(LENGTH))) + 
+  geom_point() + 
+  stat_summary(
+    geom = "point",
+    fun= "median",
+    col = "red",
+    size = 2,
+    shape = 16,
+    fill = "red") +
+  ylab("Length (mm)")
+  facet_wrap(~WATER)
+
+median_length = all_data %>%
+  group_by(SPECIES, WATER) %>%
+  summarise(median_length = median(as.numeric(LENGTH),na.rm=T))
+
+species_richness = all_data %>%
+  select(WATER, SPECIES) %>%
+  group_by(WATER) %>%
+  unique() %>% 
+  summarize(Richness = n())
+  
+left_join(median_length, species_richness) %>%
+  ggplot(aes(x = Richness, y = median_length)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_wrap(~SPECIES)
+
+median_length_z = all_data %>%
+  group_by(SPECIES) %>%
+  mutate(zscore = (LENGTH - median(LENGTH, na.rm=T))/sd(LENGTH, na.rm=T))
+
+left_join(median_length_z, species_richness) %>%
+  ggplot(aes(x = Richness, y = zscore)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_wrap(~SPECIES)
+
+
+dat = left_join(median_length_z, species_richness) %>%
+  filter(SPECIES == "NRD")
+  select(Richness, zscore, SPECIES)
+
+plot(dat$zscore~ dat$Richness)
+abline(lm(dat$zscore ~ dat$Richness))
+summary(lm(dat$zscore ~ dat$Richness))
+
+
 

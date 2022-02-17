@@ -1,0 +1,374 @@
+---
+title: "No SMB LML"
+
+output: html_document
+fig_width : 6
+fig_height : 7
+---
+```{r, echo = F, warning =FALSE, message=FALSE}
+### Libraries --------------
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(vegan)
+library(RColorBrewer)
+library(ggridges)
+library(netassoc)
+```
+
+### Functions source -----------
+##### Some of the functions used below were specifically written to manipulate AFRP data. You can load them in to your R using the following code. 
+```{r}
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+source("AFRP_Master_Code/AFRP_Functions.R") # source functions
+# The following data sheet was altered to provide pre-2000 data 
+sample = read.csv("Data/FISH_SAMPLE_edited.csv") 
+```
+
+### Graphics setup -------------
+```{r, message = F, warning = F}
+## Year Bins 
+bins = c(1996,2000,2007,2011,2017,2019)
+names = bins[-1] ## This goes into legends for visualization 
+year_bin =  (data.frame(treat = c(1998:2019)) %>%
+               separate(treat, into = c("Year", "Site")) %>% 
+               mutate(Year = .bincode(as.numeric(.$Year),
+                                      ## Define desired breaks below
+                                      ## I chose the bins created above
+                                      breaks = bins)) %>% 
+               select(Year))$Year
+```
+
+### Filter data -----------
+#### Filter data for Spring LML (BEF, TPN, GLN)
+```{r, warning = F, message= F}
+
+# BEF
+BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
+                       gear_code = "NAF", 
+                       species = species) %>% 
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998)
+
+# TPN
+tpn_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML",
+         GEAR == "TPN",
+         YEAR >= 2000)
+
+# GLN
+gln_data = left_join(fish, sample, by = "YSAMP_N") %>% 
+  left_join(sites, by = "SITE_N") %>% 
+  left_join(shoreline_length, by = "SITE_N") %>%
+  separate(SITE_N,  into = c("GEAR", "WATER","SITE")) %>% 
+  filter(WATER == "LML", 
+         GEAR == "GLN", 
+         YEAR >= 2000)
+```
+
+### Removing rare + stocked taxa ------------ 
+#### Taxa get removed if they are rare or if they are stocked given that stocking would be an artificial manipulation of populations not relating to bass. SMB are also removed to reduce how they swamp community analysis 
+
+```{r}
+`%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
+rare_threashold = 50 ## change this based on preference
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
+  summarise(frequency = n()) %>% 
+  filter(frequency < rare_threashold)
+stocked = c("LLS", "RT") ## Stocked fish in little moose
+non.native = c("RS", "MM")
+remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
+```
+
+### Site averaged NMDS across sites ------------
+#### This averages CPUE across sites and days within a given year
+
+```{r, message=F, results='hide'}
+# Data setup
+CPUE.w.sec.a = ((CPUE_wide_seconds_avg(BEF_data) %>% 
+  column_to_rownames(., var = "YEAR")))
+# NMDS analysis  
+NMDS.cpue_year=metaMDS(CPUE.w.sec.a, 
+                     k=2, try = 100) 
+```
+
+
+
+#### Visualization of species NMDS 
+
+
+```{r, echo = F}
+
+NMDS.cpue_year$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2,
+             label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("Species - averaged across sites")
+```
+
+
+
+#### Visualization of year NMDS with 90% stat ellipses 
+
+```{r, echo = F, warning = F, message = F}
+NMDS.cpue_year$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>%
+  mutate(Year_bin = .bincode(Year, bins)) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
+  geom_text(size =4) + 
+  stat_ellipse(level = .9) +
+  labs(color = "Year") + 
+  ggtitle("Years - averaged across sites")  + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+```
+
+### Size structure analysis ----------
+#### Set up data frames and bin data to get frequency of each size bin
+```{r, message = F, warning = F, echo = F}
+## Modified to remove 2002 and transform length by the sqrt 
+l = BEF_data %>% 
+  select(SPECIES, LENGTH, SITE, YEAR) %>% 
+  na.omit() %>% mutate(LENGTH = (LENGTH)) %>% 
+  filter(YEAR != 2002) 
+
+# Create bins
+bin_size = 20
+l.r = seq(from =range(l$LENGTH)[1]-.1, 
+          to =  range(l$LENGTH)[2], by = bin_size)
+l.r[length(l.r)+1] = range(l$LENGTH)[2] + .1
+
+## Bin data frame 
+length_frame = l %>%  
+  mutate(length_bin = .bincode(LENGTH, l.r)) %>% 
+  select(YEAR, length_bin) %>% 
+  group_by(length_bin, YEAR) %>%
+  summarise(length_count = n())
+```
+
+### Size Structure NMDS
+
+```{r, echo = F, results = F, message= F, warning=F}
+## Size structure NMDS -------------------------------
+# community is year
+
+totals = length_frame %>% 
+  group_by(YEAR) %>%
+  summarise(totals = sum(length_count))
+
+length_NMDS = left_join(length_frame, totals) %>% 
+  mutate(Proportion = length_count / totals) %>% 
+  select(YEAR, Proportion) %>%
+  pivot_wider(names_from = YEAR,
+              values_from = Proportion) %>% 
+  column_to_rownames(., var = "length_bin") %>%
+  mutate_all( ~replace(., is.na(.), 0)) %>%
+  as.data.frame()
+
+NMDS.L = metaMDS(length_NMDS,  k=2) 
+
+NMDS.L$species %>% as.data.frame()  %>%  
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>%
+  cbind(., year_bin[-5]) %>% 
+  ggplot(aes(x = MDS1,
+             y = MDS2,
+             label = Year,
+             color = as.character(year_bin[-5]))) + 
+  geom_text(size =3) + 
+  stat_ellipse(level = .9) + 
+  labs(color = " Year Bin") + 
+  ggtitle("SQRT:Size structure - site averaged") +
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+
+```
+
+### Ridge line plots 
+#### Target species are WS, RS, LT, CS. This is based on the fact that they show significant trends through time (likely) in response to the bass.
+
+##### All Species 
+
+```{r, echo = F, message = F, results = F, warning = F}
+ggplot(l, aes(x = LENGTH, y = as.character(YEAR), fill = stat(x))) + 
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis_c(name = "Length", option = "C") +
+  theme(legend.position = "none") +
+  xlim(0,350) + 
+  ylab("Year") + 
+  xlab("Length") 
+```
+
+
+#### Target Species 
+
+```{r, warning = F, echo = F, message = F}
+target_species = c("WS", "CC", "LT", "RS")
+l %>% filter(SPECIES %in% target_species) %>%
+  ggplot(aes(x = LENGTH, y = as.character(YEAR), fill = stat(x))) + 
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis_c(name = "Length", option = "C") +
+  theme(legend.position = "none") +
+  ylab("Year") + 
+  xlab("Length") + 
+  #ggtitle(paste(i)) + 
+  scale_x_continuous(trans='log10')+
+  facet_wrap(~SPECIES)
+
+```
+
+#### CPUE of target species  --------------
+ 
+
+
+```{r, echo = F, message = F, warning = F}
+CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
+  unite("Group", c(YEAR, SITE)) %>% 
+  column_to_rownames(., var = "Group") %>% 
+  mutate(sumrow = rowSums(.)) %>%
+  filter(sumrow>0) %>%
+  select(-sumrow)))
+
+
+years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+CPUE.w.sec %>% cbind(years_bef) %>% as.data.frame() %>%
+  pivot_longer(colnames(CPUE.w.sec), names_to = "species") %>% 
+  filter(species %in% target_species) %>%
+  ggplot(aes(y = value, x = as.numeric(YEAR))) + geom_point() +
+  scale_y_continuous(trans='log2') +
+  ylab(paste("CPUE")) + xlab("Year") +  
+  theme(plot.margin = margin(.2, .6, .2, .2, "cm")) + 
+  facet_wrap(~species)
+
+```
+
+#### Visualization of Lake Trout CPUE 
+
+```{r, echo = F, message = F, results = F, warning = F}
+CPUE.w.sec.tpn = CPUE_wide_seconds(tpn_data) %>%
+  unite("Group", c(YEAR, SITE)) %>% 
+  column_to_rownames(., var = "Group") %>% 
+  mutate(sumrow = rowSums(.)) %>%
+  filter(sumrow>0) %>%
+  select(-c(sumrow, NF))
+years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+
+
+CPUE.w.sec.lt = ((CPUE_wide_seconds(tpn_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow))) %>% 
+  select(LT) %>%
+  mutate(years = years_tpn$YEAR) %>%
+  mutate(Gear = "TPN") %>% 
+  rbind(cbind(LT = CPUE.w.sec$LT,
+              years = years_bef$YEAR,
+              Gear = rep("BEF", length(years_bef$YEAR))))
+
+CPUE.w.sec.lt %>% ggplot(aes(x = as.numeric(years), 
+                             y = (as.numeric(LT)), col = Gear)) +
+  geom_jitter() + 
+  scale_y_continuous(trans='log10') + 
+  ylab("LT CPUE")  + 
+  xlab("Year")
+```
+
+
+
+### Rate of Change -------------------------
+
+#### ROC calcualtes difference by change between two years 
+
+<br>
+
+##### Change in CPUE through time
+
+
+
+```{r, echo = F, warning = F, message = F}
+## Using averaged sites
+# Create data frame
+roc = CPUE.w.sec.a %>% 
+  mutate(across(BB:WS, ~ .x - lag(.x, default = first(.x)))) %>%
+  mutate(year_bin = .bincode(rownames(.), bins)) %>%  mutate(year = row.names(.)) %>%
+  pivot_longer(cols = c(-year, -year_bin), names_to = "species") 
+# Plot ROC data, breaking up by species
+roc %>%  
+  ggplot(aes(x = as.numeric(year), y = value, color = species)) +
+  geom_point() + ylab("Change in CPUE") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Year") +
+  facet_wrap(~species) + 
+  theme(legend.position="none")
+```
+
+##### Anova run using the same group as the `year_bins` above
+
+```{r, echo = F}
+# Running an anova across year bins for each species 
+roc %>% mutate(value = abs(value), year_bin = as.character(year_bin)) %>% 
+  filter(year_bin != "1") %>%
+  group_by(species) %>% 
+  summarise(ANOVA = summary(aov(value ~ year_bin))[[1]]$`Pr(>F)`[1]) 
+  
+```
+
+##### ROC for length 
+
+```{r, echo = F, warning= F, message = F}
+# Create data table for length
+ROC_length = l %>% group_by(SPECIES, YEAR) %>%
+  summarise(avg_length = mean(LENGTH)) %>% 
+  ungroup() %>% 
+  group_by(SPECIES) %>%
+  mutate(change = avg_length - lag(avg_length,
+                                   default = first(avg_length))) %>%
+  mutate(year_bin = .bincode(YEAR, bins))
+# Plot results broken up by species - colored for aesthetics 
+ROC_length %>% 
+  ggplot(aes(x = YEAR,
+             y = change,
+             color = SPECIES)) +
+  geom_point() + 
+  facet_wrap(~SPECIES) + 
+  theme(legend.position = "none") + 
+  ylab("Change in Length") + 
+  xlab("Year")
+```
+
+##### ANOVA of change in length through time using `year_bin`. 
+
+```{r}
+# Run anova across year bins for each species
+ROC_length%>%
+  filter(year_bin != 1) %>%
+  ungroup() %>% 
+  group_by(SPECIES) %>%
+  mutate(year_bin = as.character(year_bin)) %>%
+  summarise(ANOVA = summary(aov(avg_length ~ (year_bin)))[[1]]$`Pr(>F)`[1])
+```
+
+
+
+### Cluster analysis ----- 
+
+#### Quick shot at a cluster analysis to look at clustering of years
+
+```{r}
+distance = dist(CPUE.w.sec.a, method = "euclidian")
+mydata.hclust = hclust(distance)
+plot(mydata.hclust,hang = -1, main='Default from hclust')
+```

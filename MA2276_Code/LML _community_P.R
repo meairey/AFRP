@@ -5,24 +5,19 @@ library(tidyr)
 library(tidyverse)
 library(vegan)
 library(RColorBrewer)
+library(ggridges)
 
 ### Data -------------------
 # This is just setup at the project working directory. Use option in upper right corner of R to get into project directory. For example, on my computer ,its stored in my family one-drive
 setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 
-## I think these can go they should pop up from the source line
-#fish = read.csv("Data/FISH_MEASUREMENT.csv")
-#sample = read.csv("Data/FISH_SAMPLE.csv")
-#sites = read.csv("Data/SITES.csv")
-#shoreline_length = read.csv("Data/BEFsites_LengthAndHabitat.csv")
+
 
 ## Functions source -----------
 source("AFRP_Master_Code/AFRP_Functions.R")
 sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 
 ## Graphics setup -------
-
-#colors = viridis(20) detele this if code runs no problem
 
 ## Year Bins for NMDS plotting 
 ### At this point - playing around with 5-6yr bins
@@ -40,11 +35,14 @@ year_bin =  (data.frame(treat = c(1998:2019)) %>%
 
 ## Filter data -----------
 
-## Filter data for Little Moose, Boat electrofishing, in the spring. I've also filtered it to be yr 2000+ because earlier years had strange site labels. 
+## Filter data for Little Moose, Boat electrofishing, in the spring.
+## Pre-2000 data is not filtered out because I reassigned old site names with current site names
+### I realize that thats not perfect - but I'm not following specific sites through time so 
+#### it seemed useful to have that CPUE data 
 
 #tpn_data = filter_data(water = "LML", gear = "TPN" ,
                        
-                       #species = species) ### You need to figure out why this isnt workin in the filter data function!! 
+                       #species = species) ### You need to figure out why this isnt workin in the filter data function 
 
 # Boat Electrofishing Data
 BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
@@ -73,7 +71,8 @@ gln_data = left_join(fish, sample, by = "YSAMP_N") %>%
 # Removing rare + stocked taxa ------------ 
 ## Taxa get removed if they are rare or if they are stocked given 
 ### that stocking would be an artificial manipulation of populations 
-### not relating to bass. SMB are also removed to reduce how they swamp community analysis 
+### not relating to bass. SMB are also removed to reduce how they swamp
+### community analysis 
 
 `%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
 rare_threashold = 50 ## change this based on preference
@@ -81,7 +80,7 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove smallmouth bass + RWF (targetted in early 2000s)
+remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
 
 # Site averaged NMDS across sites -----------------
@@ -95,14 +94,12 @@ CPUE.w.sec.a = ((CPUE_wide_seconds_avg(BEF_data) %>%
   
 NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
-
-stressplot(NMDS.cpue_year) 
-plot(NMDS.cpue_year)
-
+# Visualization of species 
 NMDS.cpue_year$species %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
   as.data.frame() %>%
-  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
+  ggplot(aes(x = MDS1, y = MDS2,
+             label = rownames(NMDS.cpue_year$species))) + 
   geom_text(size =4)+ 
   ggtitle("Species - averaged across sites")
 
@@ -116,8 +113,6 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
   ggtitle("Years - averaged across sites")
-
-NMDS.cpue_year$points %>% as.data.frame() %>% mutate(Year = row.names(NMDS.cpue_year$points)) %>% write_csv(file = "NMDS_points.csv") ## CVS Tommy asked for 
 
 NMDS.cpue_year$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -172,6 +167,25 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   ggtitle("Years: by site") + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
+## Distance matrices and Permanovas or anosims -- 
+data(dune)
+data(dune.env)
+dune.dist <- vegdist(dune)
+attach(dune.env)
+dune.ano <- anosim(dune.dist, Management)
+summary(dune.ano)
+plot(dune.ano)
+
+
+cpue.dist = vegdist(CPUE.w.sec.a)
+cpue.ano = anosim(cpue.dist, year_bin)
+summary(cpue.ano)
+plot(cpue.ano)
+
+anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999)
+
+
+anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR %>% .bincode(.,bins), permutations = 9999)
 
 
 ## Size structure NMDS --------------------------------------------------------
@@ -659,3 +673,29 @@ n <- make_netassoc_network(m_obs, m_nul,
                            numnulls=100, 
                            plot=TRUE,
                            alpha=0.05)
+
+
+### Thoughts ----------------
+
+# Most abundant native species through time?
+# I think if were talking about community recovery - native species should be centered
+# Include tangential mention of smelt in ROC and CPUE stats
+# Time since recovery x-axis = year, y-axis = CPUE color = taxonomic group?
+## SHoud we also remmove SS because its not a great way to catch sculipns
+
+CPUE.w.sec.a
+colnames(CPUE.w.sec.a)
+CPUE.w.sec.a %>% 
+  mutate(Leuciscid = CC + CS, 
+         Salmonid = ST + LT,
+         Centrarchid = PS, 
+         Castomid = WS, 
+         Cottid = SS, 
+         Ictaludid = BB, 
+         Year = rownames(CPUE.w.sec.a)) %>%
+  select(Leuciscid, Salmonid, Centrarchid, Castomid, Cottid, Ictaludid, Year) %>%
+  pivot_longer(1:6, names_to = "Species") %>%
+  ggplot(aes(x = as.numeric(Year), y = value, color = Species)) + 
+  geom_line() +
+  ylab("CPUE") + 
+  xlab("Year")
