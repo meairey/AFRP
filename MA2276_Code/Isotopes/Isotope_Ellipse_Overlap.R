@@ -1,42 +1,35 @@
 library(dplyr)
 library(SIBER)
-source("isotope_functions.R")
+source("MA2276_Code/Isotopes/isotope_functions.R")
 
-PRL_overlap = overlap(x,3,20)
+new_list = list()
 
-LOP_overlap = overlap(x,2,20)
-
-
-TPP_overlap = overlap(x,4,20)
-
-
-overlap = full_join(as.data.frame(TPP_overlap),
-                    as.data.frame(LOP_overlap)) %>%
-  full_join(as.data.frame(PRL_overlap),.) %>%
-  distinct(`Com 2`,`Com 4`, `Com 3`, .keep_all = T) %>%
-  select('Spp Pair','Com 2',`Com 4`,`Com 3`)
-
-### Heron Marsh overlap function 
-
-HRM_dat = X %>% 
-  data.frame(iso1 = .$d13C,
-             iso2 = .$d15N,
-             group = as.numeric(as.factor(.$Species)),
-             water = as.numeric(as.factor(.$Water)), 
-             community = .$Site) %>%
-  filter(water == 1) %>%
-  select(iso1, iso2, group, community) %>%
-  group_by(group, community)%>%
-  filter(n()>=exclude)
+for(i in 1:8){
+  new_list[[i]] = overlap(data,i,20)
+}
 
 
+overlap_data = full_join(as.data.frame(new_list[[1]]),
+                    as.data.frame(new_list[[2]])) %>%
+  full_join(as.data.frame(new_list[[3]]),.) %>%
+  full_join(as.data.frame(new_list[[4]]),.) %>%
+  full_join(as.data.frame(new_list[[5]]),.) %>%
+  full_join(as.data.frame(new_list[[6]]),.) %>%
+  full_join(as.data.frame(new_list[[7]]),.) %>%
+  full_join(as.data.frame(new_list[[8]]),.) %>%
+  distinct(`Com 1`,`Com 2`, `Com 3`, `Com 4`, `Com 5`,
+           `Com 6`, `Com 7`, `Com 8`, .keep_all = T) %>%
+  select(`Spp Pair`,`Com 1`,`Com 2`,`Com 3`,`Com 4`,
+         `Com 5`,`Com 6`,`Com 7`,`Com 8`)
+  
+colnames(overlap_data) = c("Species",lake$Water)
+
+overlap_averages = overlap_data %>% select(-Species) %>% 
+  mutate(across(everything(), ~as.numeric(.))) %>%
+  mutate(across(everything(), function(x) replace(x,x==1,NA))) %>%
+  summarise(across(everything(),list(mean = ~ mean(., na.rm = TRUE))))
   
 
-HRM1_O= overlap(HRM_dat,1,20)
-HRM2_O = overlap(HRM_dat,2,20) 
-HRM3_O = overlap(HRM_dat,3,20)
-HRM4_O = overlap(HRM_dat,4,20)
-HRM5_O = overlap(HRM_dat,5,20)
 
 
 

@@ -1,17 +1,18 @@
-
+library(RColorBrewer)
 
 ## Functions -----------------------------------------------------------
 overlap = function(data_input, comm, dr){
   ## Remove this later
-  data = data_input %>% 
+  
+  data_overlap = data_input %>% 
     filter(community == comm)
   
-  data = combo %>% filter(community == 1)
-  spp=length(unique(data$group))
-  print(data)
+  #data_overlap = combo %>% filter(community == 1)
+  spp=length(unique(data_overlap$group))
+  print(data_overlap)
   
   
-  siber.example <- createSiberObject(as.data.frame(data)) 
+  siber.example <- createSiberObject(as.data.frame(data_overlap)) 
   
   posterior <- siberMVN(siber.example, parms, priors)
   
@@ -67,7 +68,6 @@ overlap = function(data_input, comm, dr){
   rownames(olap_mat) = c(paste("Com",comm),"Spp Pair")
   
   return(as.data.frame(t(olap_mat))) ## This is a reminder to pull 90% CI intervals out of this at a point when i can play with code and dont need to be writing
-  
   
 }
 
@@ -127,7 +127,7 @@ combo = read.csv("Data/SIA_Data.csv", header=T) %>%
   filter(Species != "NA" & Species !="PD_remove") %>%
   select(Species,group, Site,Water, d15N, d13C)
 
-# Use data throughout other code
+# Use data throughout other code, (i think it replaces combined?)
 data = combo  %>%
   data.frame(iso1 = .$d13C,
              iso2 = .$d15N,
