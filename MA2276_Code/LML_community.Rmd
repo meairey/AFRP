@@ -29,6 +29,7 @@ sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 ```{r, message = F, warning = F}
 ## Year Bins 
 bins = c(1996,2000,2007,2011,2017,2019)
+bisby_bins = c(1999, 2006,  2012, 2019)
 names = bins[-1] ## This goes into legends for visualization 
 year_bin =  (data.frame(treat = c(1998:2019)) %>%
                separate(treat, into = c("Year", "Site")) %>% 
@@ -37,6 +38,16 @@ year_bin =  (data.frame(treat = c(1998:2019)) %>%
                                       ## I chose the bins created above
                                       breaks = bins)) %>% 
                select(Year))$Year
+
+
+bisby_year_bin =  (data.frame(treat = seq(2001, 2019, by = 1)[-c(2,3)]) %>%
+               separate(treat, into = c("Year", "Site")) %>% 
+               mutate(Year = .bincode(as.numeric(.$Year),
+                                      ## Define desired breaks below
+                                      ## I chose the bins created above
+                                      breaks = bins)) %>% 
+               select(Year))$Year
+
 ```
 
 ### Filter data -----------
@@ -44,7 +55,7 @@ year_bin =  (data.frame(treat = c(1998:2019)) %>%
 ```{r, warning = F, message= F}
 
 # BEF
-BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
+BEF_data_unfiltered = filter_data(water = "FBL", gear = "BEF",
                        gear_code = "NAF", 
                        species = species) %>% 
   filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998)
@@ -121,7 +132,7 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>%
-  mutate(Year_bin = .bincode(Year, bins)) %>% 
+  mutate(Year_bin = .bincode(Year, bisby_bins)) %>% 
   ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
   geom_text(size =4) + 
   stat_ellipse(level = .9) +
@@ -178,16 +189,16 @@ NMDS.L$species %>% as.data.frame()  %>%
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>%
-  cbind(., year_bin[-5]) %>% 
+  cbind(., bisby_year_bin) %>% 
   ggplot(aes(x = MDS1,
              y = MDS2,
              label = Year,
-             color = as.character(year_bin[-5]))) + 
+             color = as.character(bisby_year_bin))) + 
   geom_text(size =3) + 
   stat_ellipse(level = .9) + 
   labs(color = " Year Bin") + 
   ggtitle("SQRT:Size structure - site averaged") +
-  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+  scale_color_manual(labels =  bins[2:6], values= unique(bisby_year_bin))
 
 ```
 
@@ -247,6 +258,7 @@ CPUE.w.sec %>% cbind(years_bef) %>% as.data.frame() %>%
   scale_y_continuous(trans='log2') +
   ylab(paste("CPUE")) + xlab("Year") +  
   theme(plot.margin = margin(.2, .6, .2, .2, "cm")) + 
+  geom_smooth(method = "lm") +
   facet_wrap(~species)
 
 ```
@@ -302,7 +314,7 @@ CPUE.w.sec.lt %>% ggplot(aes(x = as.numeric(years),
 ## Using averaged sites
 # Create data frame
 roc = CPUE.w.sec.a %>% 
-  mutate(across(BB:WS, ~ .x - lag(.x, default = first(.x)))) %>%
+  mutate(across(colnames(CPUE.w.sec.a), ~ .x - lag(.x, default = first(.x)))) %>%
   mutate(year_bin = .bincode(rownames(.), bins)) %>%  mutate(year = row.names(.)) %>%
   pivot_longer(cols = c(-year, -year_bin), names_to = "species") 
 # Plot ROC data, breaking up by species

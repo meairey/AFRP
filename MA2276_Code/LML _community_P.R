@@ -167,7 +167,7 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   ggtitle("Years: by site") + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-## Distance matrices and Permanovas or anosims -- 
+## Distance matrices and Permanovas or anosims -------
 data(dune)
 data(dune.env)
 dune.dist <- vegdist(dune)
@@ -186,6 +186,29 @@ anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999
 
 
 anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR %>% .bincode(.,bins), permutations = 9999)
+
+
+## Standardizing CPUE with z-scores ----------------------------------
+
+CPUE.w.sec.a %>% mutate(across(everything(),~scale(.), na.rm = TRUE)) %>% 
+  mutate(Year = rownames(.)) %>%
+  pivot_longer(-Year, names_to = "Species", values_to = "CPUE") %>%
+  ggplot(aes(x = as.numeric(Year), y =CPUE)) + 
+  geom_point() +
+  #geom_line() + 
+  #facet_wrap(~Species) +
+  geom_smooth(se = F)
+
+
+
+CPUE.w.sec %>% mutate(across(everything(),~scale(.), na.rm = TRUE)) %>% 
+  mutate(Year = years_bef$YEAR) %>%
+  pivot_longer(-Year, names_to = "Species", values_to = "CPUE") %>%
+  ggplot(aes(x = as.numeric(Year), y =CPUE, color = Species)) + 
+  #geom_point() +
+  geom_line() + 
+  facet_wrap(~Species)
+
 
 
 ## Size structure NMDS --------------------------------------------------------
@@ -278,7 +301,7 @@ NMDS.L$species %>% as.data.frame()  %>%
   ggtitle("SQRT:Size structure - site averaged") +
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-NMDS.L.site = metaMDS(length_frame_site, k =12) ##  No convergence on by site 
+NMDS.L.site = metaMDS(t(length_frame_site), k =5) ##  No convergence on by site 
 
 
 NMDS.L.site$species %>% as.data.frame() %>% 
@@ -310,7 +333,8 @@ length_frame %>%
   geom_smooth(se=F,method = 'lm') + 
   ylim(0,800) + ylab("Average Frenqency of Size")+ xlab("Length Bin") +
   labs(colour = "Year") + ggtitle("Average size frequency across time") + 
-  scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200) + facet_wrap(~YEAR)
+  scale_color_discrete(name = "Year", labels = as.character(bins[-1])) + ylim(-1,200) +
+  facet_wrap(~YEAR)
 
 
 length_frame %>%
