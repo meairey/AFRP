@@ -1,5 +1,7 @@
 ## Splitting up Heron Marsh 
-
+library(dplyr)
+library(ggplot2)
+library(SIBER)
 source("MA2276_Code/Isotopes/isotope_functions.R")
 
 
@@ -75,12 +77,12 @@ for(h in 1:8){
   z = ggplot() + geom_point(dat[[4]], mapping = aes(x = d13C, y =d15N , 
                                                     color = group))
   
-  z = z + geom_point(aes(x = ellip[,1,], y = ellip[,2,], color = (rep(as.factor(unique((dat[[3]]$group))),each = 1000))),size = 01, alpha = .09) +
-    ggtitle(lake$Name[h]) + 
-    ylab("d15N") + xlab("d13C") + 
-    scale_color_manual(values = legend$tax_col[sort(unique(combined$group))], 
-                       labels =legend[sort(unique(combined$group)),4],
-                       name = "Species")
+  #z = z + geom_point(aes(x = ellip[,1,], y = ellip[,2,], color = (rep(as.factor(unique((dat[[3]]$group))),each = 1000))),size = 01, alpha = .09) +
+    #ggtitle(lake$Name[h]) + 
+    #ylab("d15N") + xlab("d13C") + 
+    #scale_color_manual(values = legend$tax_col[sort(unique(combined$group))], 
+                       #labels =legend[sort(unique(combined$group)),4],
+                       #name = "Species")
   
   #print(z)
   print(p)

@@ -16,9 +16,9 @@ source("MA2276_Code/Isotopes/isotope_functions.R")
 ## dat[[3]] = data frame that gets subsetted
 ## dat[[4]] = combo that is subsetted
 relative_list = list()
-median_areas = vector()
+median_areas = rep(0, 8)
 for(h in 1:8){
-  h = 6
+  
   dat = data_setup(data,h)
   
   ellipse.area = siberEllipses(dat[[2]])
@@ -56,16 +56,22 @@ for(h in 1:8){
     scale_color_manual(values = legend$color[sort(unique(dat[[3]]$group))], 
                        
                        name = "Species")
-  relative_list[[i-1]] = median_area
-  median_areas[i-1] = mean(as.numeric(median_area[1,]))
+
+  relative_list[[h]] = as.numeric(median_area[1,])
+  median_areas[h] = mean(as.numeric(median_area[1,]))
+
   print(g)
 }
-median_area
 
-m.a = c(.5,0.322209,0.2435587,0.3166694,0.3227977,0.1385977)
+
+
+
+
 
 ## Proportion of axes - different -------------------
 
+CC_data = list()
+NRD_data = list()
 for(h in 1:8){
   
   # Define community - can delete 
@@ -143,6 +149,14 @@ for(h in 1:8){
                  names_to = "SP_mean",
                  values_to = "Dat_C_mean") %>%
     mutate(Dat_C_mean = rescale(Dat_C_mean))
+  
+  
+  ## CC graphs for ARF
+  
+  CC_data[[h]] = as.numeric((C_mean %>% filter(SP_mean == "CC_mean") %>%
+    select(Dat_C_mean))$Dat_C_mean)
+  NRD_data[[h]] = as.numeric((C_mean %>% filter(SP_mean == "NRD_mean") %>%
+                               select(Dat_C_mean))$Dat_C_mean)
   
   frame_C = cbind(C_mean, C_proportion) %>%
     as.data.frame() %>%
@@ -238,6 +252,8 @@ for(h in 1:8){
      ylab("Proportion of 15N axis") + 
      xlab("Mean 15N") 
    #print(k)
+   
+  
    
    ## rescaled values for relative position  
    ## d15N
