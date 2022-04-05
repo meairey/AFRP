@@ -15,24 +15,25 @@ setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 
 ## Functions source -----------
 source("AFRP_Master_Code/AFRP_Functions.R")
+
 sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 
 ## Graphics setup -------
 
-## Year Bins for NMDS plotting 
+## Year Bins for NMDS plotting -----------------------------
 ### At this point - playing around with 5-6yr bins
-bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
-bins = c(1996,2000,2007,2011,2017,2019)
-names = bins[-1] ## This goes into legends for visualization 
-year_bin =  (data.frame(treat = c(1998:2019)) %>%
-               separate(treat, into = c("Year", "Site")) %>% 
-               mutate(Year = .bincode(as.numeric(.$Year),
+#bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
+#bins = c(1996,2000,2007,2011,2017,2019)
+#names = bins[-1] ## This goes into legends for visualization 
+#year_bin =  (data.frame(treat = c(1998:2019)) %>%
+ #              separate(treat, into = c("Year", "Site")) %>% 
+  #             mutate(Year = .bincode(as.numeric(.$Year),
                                       ## Define desired breaks below
-                                      breaks = bins)) %>% 
-               select(Year))$Year
+   #                                   breaks = bins)) %>% 
+    #           select(Year))$Year
 #c(1999,2000, 2005, 2012, 2019))) old options for breaks
 #breaks = c(1999,2000, 2009, 2011, 2019))) old options for breaks
-
+#-----------------------------------------------------
 ## Filter data -----------
 
 ## Filter data for Little Moose, Boat electrofishing, in the spring.
@@ -80,8 +81,38 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
+remove = c(stocked, rare$SPECIES, "RWF", "SMB", "RS") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
+SMB_data = BEF_data_unfiltered
+
+# SMB manipulation for size class
+length_bins = c(0,100,200,600)
+SMB_BEF_data = BEF_data_unfiltered %>% filter(SPECIES == "SMB") %>% 
+  select(-SPECIES) %>%
+  mutate(SPECIES = .bincode(LENGTH, length_bins ))
+
+smb.size = ((CPUE_wide_seconds_avg(SMB_BEF_data) %>% 
+               column_to_rownames(., var = "YEAR")))
+
+smb.size %>% mutate(YEAR = c(1998:2019)) %>%
+                      pivot_longer(0:4,values_to = "CPUE") %>% 
+  ggplot(aes(x = YEAR, y = CPUE, col = name)) + geom_point() + 
+  scale_y_continuous(trans = "log10")
+
+# Temperature + ice out string ---------------
+
+temp_string = BEF_data %>% select(TEMP_SAMP, YEAR) %>%
+  group_by(YEAR) %>%
+  summarise(mean_temp = mean(TEMP_SAMP, na.rm=T))
+ice_out = read.csv("Data/ICE_OUT.csv") %>% na.omit() %>%
+  filter(Year %in% c(1998:2019))
+
+BEF_samp_day = BEF_data %>% select(YEAR, DAY_N) %>% group_by(YEAR) %>%
+  summarize(DAY_N = min(DAY_N))
+
+temp_string_air = left_join(BEF_samp_day, read.csv("Data/TIME_TEMP_OLDFORGE.csv"))
+
+
 
 # Site averaged NMDS across sites -----------------
 ## This averages CPUE across sites and days within a given year
@@ -91,7 +122,9 @@ BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
 
 CPUE.w.sec.a = ((CPUE_wide_seconds_avg(BEF_data) %>% 
   column_to_rownames(., var = "YEAR"))) # Data setup
-  
+CPUE.w.sec.a.smb =   ((CPUE_wide_seconds_avg(SMB_data) %>% 
+                         column_to_rownames(., var = "YEAR"))) # With SMB
+
 NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
 # Visualization of species 
@@ -113,6 +146,7 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
   ggtitle("Years - averaged across sites")
+
 
 NMDS.cpue_year$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
@@ -136,7 +170,15 @@ CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
   mutate(sumrow = rowSums(.)) %>%
   filter(sumrow>0) %>%
   select(-sumrow)))
+## Creating row names 
+years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
+  separate(names, into = c("YEAR", "SITE"))
 
+years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
+  separate(names, into = c("YEAR", "SITE"))
+
+years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
+  separate(names, into = c("YEAR", "SITE"))
 # Running NMDS
 NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
              k=3) 
@@ -167,7 +209,28 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   ggtitle("Years: by site") + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-## Distance matrices and Permanovas or anosims -------
+## NMDS distance ------------------------------
+
+CPUE.w.sec.a %>% 
+  dist(method = "euclidean", upper = TRUE, diag = TRUE) %>% 
+  as.matrix() %>% as.data.frame() %>%
+  ggplot(aes(x = as.numeric(rownames(CPUE.w.sec.a)),
+             y = `2000`)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  xlim(1997,2022) + 
+  xlab("Time (year)") + 
+  ylab("Euclidean Dist from 2000")
+  
+
+
+  
+
+## Need to add a 0 at the beginning no real idea why that is 
+
+dog == cat
+rob  = cbind(dog,cat)
+## ANOSIM  -----------
 data(dune)
 data(dune.env)
 dune.dist <- vegdist(dune)
@@ -185,7 +248,158 @@ plot(cpue.ano)
 anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999)
 
 
-anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR %>% .bincode(.,bins), permutations = 9999)
+ano = anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR, permutations = 9999)
+
+
+## Mantel test -------- 
+# CPUE matrix
+cpue.dist = vegdist(CPUE.w.sec.a, method = "bray")
+# Time Matrix
+time.dist = dist(as.numeric(row.names(CPUE.w.sec.a)), method = "euclidean")
+# Temp Matrix 
+temp.dist = dist(as.numeric(temp_string_air$Prior30days, method = "euclidean"))
+# Ice out Matrix
+ice.dist = dist(as.numeric(ice_out$Ice.out.date, method = "euclidean"))
+
+# SMB overall CPUE matrix 
+smb.dist= dist(as.numeric(CPUE.w.sec.a.smb$SMB))
+# SMB CPUE offset 
+smb.offset = dist(c(NA, CPUE.w.sec.a.smb$SMB)[-23])
+# SMB small 
+smb.small = dist(as.numeric(smb.size[,2]), method = "euclidean")
+# SMB large 
+smb.large = dist(as.numeric(smb.size[,4]), method = "euclidean")
+
+
+
+## Tests 
+# CPUE + Time - significant 
+mantel(xdis = cpue.dist, ydis = time.dist, method = "spearman", permutations = 9999, na.rm = TRUE)
+# CPUE + Temp - non-significant 
+mantel(xdis = cpue.dist, ydis = temp.dist, method = "spearman", permutations = 9999, na.rm = TRUE)
+# CPUE + ice out - non-significant 
+mantel(xdis = cpue.dist, ydis = ice.dist, method = "spearman", permutations = 9999, na.rm = TRUE)
+# CPUE + SMB overall- significant
+mantel(xdis = cpue.dist, ydis = smb.dist, method = "spearman", permutations = 9999, na.rm = TRUE)
+# CPUE + SMB offset 
+mantel(xdis = cpue.dist, ydis = smb.offset, method = "spearman", permutations = 9999, na.rm = TRUE)
+# CPUE + SMB small 
+mantel(xdis = cpue.dist, ydis = smb.small, method = "spearman", permutations = 9999, na.rm = TRUE)
+
+# CPUE + SMB large 
+mantel(xdis = cpue.dist, ydis = smb.large, method = "spearman", permutations = 9999, na.rm = TRUE)
+
+
+
+
+aa = as.vector(cpue.dist)
+tt = as.vector(time.dist)
+gg = as.vector(ice.dist)
+hh = as.vector(temp.dist)
+zz = as.vector(smb.dist)
+#new data frame with vectorized distance matrices
+mat = data.frame(aa,tt,hh,zz)
+mm = ggplot(mat, aes(y = aa, x = zz)) + 
+  geom_point(size = 4, alpha = 0.75, colour = "black",shape = 21, aes(fill = hh/10)) + 
+  geom_smooth(method = "lm", colour = "black", alpha = 0.2) + 
+  labs(x = "Difference in Time (C)", y = "Bray-Curtis Dissimilarity", fill = "Difference in Prior 30 Days Temp (C)") + 
+  theme( axis.text.x = element_text(face = "bold",
+                                    colour = "black",
+                                    size = 12), 
+         axis.text.y = element_text(face = "bold",
+                                    size = 11, 
+                                    colour = "black"), 
+         axis.title= element_text(face = "bold", 
+                                  size = 11,
+                                  colour = "black"), 
+         panel.background = element_blank(), 
+         panel.border = element_rect(fill = NA, 
+                                     colour = "black"),
+         legend.position = "top",
+         legend.text = element_text(size = 7,
+                                    face = "bold"),
+         legend.title = element_text(size = 11,
+                                     face = "bold")) +
+  scale_fill_continuous(high = "navy",
+                        low = "skyblue")
+
+mm
+
+# SIMPER -------------
+
+sim = simper(CPUE.w.sec.a, rownames(CPUE.w.sec.a),permutations = 999)
+summary(sim)
+meta = cbind(year = as.numeric(rownames(CPUE.w.sec.a)), temp_string$mean_temp)
+simper.pretty(CPUE.w.sec.a, meta, c('year'), perc_cutoff=1, low_cutoff = 'y', low_val=0.01 ,'year')
+
+# Making simper output understandable
+l = list()
+for(i in names(sim)){
+  h = sim[[i]]
+  sub =  h$p
+  l[[i]] = sub
+}
+
+
+## try making the size of each dot the avg or cumsum of the points 
+pretty = matrix(unlist(l), length(names(sim)), 10)
+colnames(pretty) = h$species
+pretty = pretty %>% as.data.frame() %>%
+  mutate(year = names(sim)) %>%
+  separate(year, into = c("Y1", "Y2")) %>%
+  mutate(Y1 = as.numeric(Y1)) %>%
+  mutate(Y2 = as.numeric(Y2)) %>%
+  pivot_longer(BB:WS, names_to = "species", values_to = "p_value") %>%
+  filter(p_value < .05)
+  
+pretty %>% ggplot(aes(x = Y1,
+                      y = Y2, 
+                      color = species)) + 
+  geom_jitter()
+
+counts = pretty %>% group_by(species) %>%
+  summarise(impact = n())
+
+left_join(pretty, counts) %>% 
+  ggplot(aes(x = Y1,                                         y = Y2,
+  color = species,                                          size = impact/100)) + 
+  geom_jitter() + 
+  labs(size = "Impact")
+
+
+
+
+av = list()
+for(i in names(sim)){
+  h = sim[[i]]
+  l[[i]] =  h$p
+  av[[i]] = h$average
+}
+
+pretty = matrix(unlist(l), length(names(sim)), 10)%>% as.data.frame() %>% 
+  mutate(id = c(1:nrow(.))) 
+avg = matrix(unlist(av), length(names(sim)),10) %>% as.data.frame() %>% 
+  mutate(id = c(1:nrow(.))) 
+colnames(avg) = c(h$species, "ID")
+colnames(pretty) = c(h$species,"ID")
+pretty = pretty %>%
+  mutate(year = names(sim))%>% 
+  pivot_longer(BB:WS, names_to= "species", values_to = "p_value")
+avg = avg %>%
+  mutate(year = names(sim))%>% 
+  pivot_longer(BB:WS, names_to= "species", values_to = "avg")
+
+dat_simper = left_join(pretty, avg) %>%
+  separate(year, into = c("Y1", "Y2")) %>%
+  mutate(Y1 = as.numeric(Y1)) %>%
+  mutate(Y2 = as.numeric(Y2)) %>%
+  filter(p_value < .05)
+
+dat_simper %>% ggplot(aes(x = Y1, y = Y2, color = species, size = avg)) + 
+  geom_point() +
+  labs(size = "Average Contribution (SIMPER)", color = "Species") + 
+  theme(axis.title.y = element_blank(),
+        axis.title.x = element_blank())
 
 
 ## Standardizing CPUE with z-scores ----------------------------------
@@ -347,7 +561,7 @@ length_frame %>%
   xlab("Length Bin") + 
   facet_wrap(~YEAR_bin) + 
   scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
-
+nmds.dist[1:22] CHECK HERE 
 ## Ridge line plots 
 install.packages("ggridges")
 library(ggridges)
@@ -462,14 +676,7 @@ CS_data %>% group_by(YEAR) %>%
 ## Combining BEF, GLN, and TPN data 
 LT_combined = gln_data %>% filter(SPECIES == "LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "GLN") %>% rbind(LT_data %>% select(LENGTH, YEAR) %>% mutate(gear = "TPN")) %>% rbind(BEF_data %>% filter(SPECIES =="LT") %>% select(LENGTH, YEAR) %>% mutate(gear = "zBEF")) ## combining all data types
 
-years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
-  separate(names, into = c("YEAR", "SITE"))
 
-years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
-  separate(names, into = c("YEAR", "SITE"))
-
-years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
-  separate(names, into = c("YEAR", "SITE"))
 
 ### hmm
 
@@ -675,7 +882,7 @@ ROC_length%>%
 ### Cluster analysis ----- 
 
 CPUE.w.sec.a
-distance = dist(CPUE.w.sec.a, method = "euclidian")
+distance = dist(CPUE.w.sec.a, method = "euclidean")
 mydata.hclust = hclust(distance)
 plot(mydata.hclust,hang = -1, main='Default from hclust')
 
