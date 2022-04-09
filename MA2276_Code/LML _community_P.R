@@ -15,25 +15,24 @@ setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 
 ## Functions source -----------
 source("AFRP_Master_Code/AFRP_Functions.R")
-
 sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 
 ## Graphics setup -------
 
-## Year Bins for NMDS plotting -----------------------------
+## Year Bins for NMDS plotting 
 ### At this point - playing around with 5-6yr bins
-#bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
-#bins = c(1996,2000,2007,2011,2017,2019)
-#names = bins[-1] ## This goes into legends for visualization 
-#year_bin =  (data.frame(treat = c(1998:2019)) %>%
- #              separate(treat, into = c("Year", "Site")) %>% 
-  #             mutate(Year = .bincode(as.numeric(.$Year),
+bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
+bins = c(1996,2000,2007,2011,2017,2019)
+names = bins[-1] ## This goes into legends for visualization 
+year_bin =  (data.frame(treat = c(1998:2019)) %>%
+               separate(treat, into = c("Year", "Site")) %>% 
+               mutate(Year = .bincode(as.numeric(.$Year),
                                       ## Define desired breaks below
-   #                                   breaks = bins)) %>% 
-    #           select(Year))$Year
+                                      breaks = bins)) %>% 
+               select(Year))$Year
 #c(1999,2000, 2005, 2012, 2019))) old options for breaks
 #breaks = c(1999,2000, 2009, 2011, 2019))) old options for breaks
-#-----------------------------------------------------
+
 ## Filter data -----------
 
 ## Filter data for Little Moose, Boat electrofishing, in the spring.
@@ -81,7 +80,7 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "RWF", "SMB", "RS") ## Remove SMB + RWF (targeted 2000s)
+remove = c(stocked, rare$SPECIES, "RWF", "SMB","RS") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
 SMB_data = BEF_data_unfiltered
 
@@ -98,8 +97,7 @@ smb.size %>% mutate(YEAR = c(1998:2019)) %>%
                       pivot_longer(0:4,values_to = "CPUE") %>% 
   ggplot(aes(x = YEAR, y = CPUE, col = name)) + geom_point() + 
   scale_y_continuous(trans = "log10")
-
-# Temperature + ice out string ---------------
+# Temperature + ice out string
 
 temp_string = BEF_data %>% select(TEMP_SAMP, YEAR) %>%
   group_by(YEAR) %>%
@@ -111,6 +109,7 @@ BEF_samp_day = BEF_data %>% select(YEAR, DAY_N) %>% group_by(YEAR) %>%
   summarize(DAY_N = min(DAY_N))
 
 temp_string_air = left_join(BEF_samp_day, read.csv("Data/TIME_TEMP_OLDFORGE.csv"))
+
 
 
 
@@ -183,6 +182,11 @@ years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
 NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
              k=3) 
 
+## Points through time dist matrix 
+nmds.dist = dist(CPUE.w.sec.a, upper = T) %>% as.matrix(.) %>% as.data.frame()
+data.frame(dist = nmds.dist$`2000`, year = unique(years_bef$YEAR)) %>% ggplot(aes(x = as.numeric(year), y = dist)) + geom_point() + ylab("Distance from 2000") + xlab("Year")
+
+
 # Diagnostic plots 
 stressplot(NMDS.cpue_siteyear)
 plot(NMDS.cpue_siteyear)
@@ -209,27 +213,6 @@ NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   ggtitle("Years: by site") + 
   scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
-## NMDS distance ------------------------------
-
-CPUE.w.sec.a %>% 
-  dist(method = "euclidean", upper = TRUE, diag = TRUE) %>% 
-  as.matrix() %>% as.data.frame() %>%
-  ggplot(aes(x = as.numeric(rownames(CPUE.w.sec.a)),
-             y = `2000`)) +
-  geom_point() + 
-  theme(axis.text.x = element_text(angle = 90)) + 
-  xlim(1997,2022) + 
-  xlab("Time (year)") + 
-  ylab("Euclidean Dist from 2000")
-  
-
-
-  
-
-## Need to add a 0 at the beginning no real idea why that is 
-
-dog == cat
-rob  = cbind(dog,cat)
 ## ANOSIM  -----------
 data(dune)
 data(dune.env)
@@ -561,7 +544,7 @@ length_frame %>%
   xlab("Length Bin") + 
   facet_wrap(~YEAR_bin) + 
   scale_fill_discrete(name = "Year", labels = as.character(bins[-1]))
-nmds.dist[1:22] CHECK HERE 
+
 ## Ridge line plots 
 install.packages("ggridges")
 library(ggridges)
@@ -882,7 +865,7 @@ ROC_length%>%
 ### Cluster analysis ----- 
 
 CPUE.w.sec.a
-distance = dist(CPUE.w.sec.a, method = "euclidean")
+distance = dist(CPUE.w.sec.a, method = "euclidian")
 mydata.hclust = hclust(distance)
 plot(mydata.hclust,hang = -1, main='Default from hclust')
 

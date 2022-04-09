@@ -8,8 +8,83 @@ vec = vector()
 p.val = vector()
 species = colnames(CPUE.w.sec)
 change_points_list = list()
+## Reformatting changepoint -----------------
+
+v = CPUE.w.sec %>% 
+  mutate(y_s = rownames(CPUE.w.sec)) %>%
+  pivot_longer(1:length(species),
+               names_to = "Species") %>%
+  separate(y_s, into = c("year", "site")) %>%
+  unite("ID", 
+        c(site:Species), 
+        sep = "_", 
+        remove = F) %>%
+  select(-site)
+
+## Fixed change point using multiple sites a year as multivariate --------- 
+for(i in species){
+  
+  x = v %>% filter(Species == i) %>%
+    mutate(value = as.numeric(value)) %>% 
+    select(-Species) %>%
+    mutate(value = log10(value+1)) %>%
+    pivot_wider(values_from = value,
+                names_from = ID) %>%
+    replace(is.na(.), 0) %>%
+    select(-year) %>%
+    as.matrix()
+  rownames(x) = rownames(CPUE.w.sec.a)
+  
+  output = e.divisive(x, R = 499, alpha = 1, min.size = 2, sig.lvl = .5)
+  dat = data.frame(Year = rownames(CPUE.w.sec.a), 
+                   color = output$cluster)
+  pl = ggplot(dat,aes(x = Year,
+                      y = color,
+                      col = as.character(color))) + 
+    geom_point() + ggtitle(paste(i))
+  
+  print(pl)
+}
+
+## Average value per year 
+for(i in species){
+  
+  x = v %>%  group_by(Species, year)%>% 
+    summarise(mean_CPUE = mean(value)) %>%
+    filter(Species == i) %>%
+    select(-Species) %>%
+    replace(is.na(.), 0) %>%
+    ungroup() %>%
+    select(-c(year, Species)) %>%
+    #mutate(mean_CPUE = scale(mean_CPUE)) %>%
+    as.matrix()
+  #x = x*10000
+  rownames(x) = rownames(CPUE.w.sec.a)
+  output = e.divisive(x, R = 499, alpha = 1, k= 2, sig.lvl = .05, min.size = 2)
+  dat = data.frame(Year = rownames(CPUE.w.sec.a), 
+                   color = output$cluster)
+  pl = ggplot(dat,aes(x = Year,
+                      y = color,
+                      col = as.character(color))) + 
+    geom_point() + ggtitle(paste(i))
+  
+  print(pl)
+}
+
+
+set.seed(100)
+x1 = matrix(c(rnorm(100),rnorm(100,3),rnorm(100,0,2)))
+y1 = e.divisive(X=x1,sig.lvl=0.05,R=199,k=NULL,min.size=30,alpha=1)
+
+           
+
+# --------------
+
+
+  
 
 for(i in 1:length(species)){
+  i = 1
   x = CPUE.w.sec %>% select(species[i]) %>% as.matrix()
   output = e.divisive(x, R= 499, alpha = 1)
   
