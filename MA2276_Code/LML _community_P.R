@@ -19,20 +19,6 @@ sample = read.csv("Data/FISH_SAMPLE_edited.csv")
 
 ## Graphics setup -------
 
-## Year Bins for NMDS plotting 
-### At this point - playing around with 5-6yr bins
-bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
-bins = c(1996,2000,2007,2011,2017,2019)
-names = bins[-1] ## This goes into legends for visualization 
-year_bin =  (data.frame(treat = c(1998:2019)) %>%
-               separate(treat, into = c("Year", "Site")) %>% 
-               mutate(Year = .bincode(as.numeric(.$Year),
-                                      ## Define desired breaks below
-                                      breaks = bins)) %>% 
-               select(Year))$Year
-#c(1999,2000, 2005, 2012, 2019))) old options for breaks
-#breaks = c(1999,2000, 2009, 2011, 2019))) old options for breaks
-
 ## Filter data -----------
 
 ## Filter data for Little Moose, Boat electrofishing, in the spring.
@@ -82,6 +68,8 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
 stocked = c("LLS", "RT") ## Stocked fish in little moose
 remove = c(stocked, rare$SPECIES, "RWF", "SMB","RS") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
+
+
 SMB_data = BEF_data_unfiltered
 
 # SMB manipulation for size class
@@ -126,13 +114,15 @@ CPUE.w.sec.a.smb =   ((CPUE_wide_seconds_avg(SMB_data) %>%
 
 NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
+
 # Visualization of species 
 NMDS.cpue_year$species %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
   as.data.frame() %>%
-  ggplot(aes(x = MDS1, y = MDS2,
+  ggplot(aes(x = MDS1, 
+             y = MDS2,
              label = rownames(NMDS.cpue_year$species))) + 
-  geom_text(size =4)+ 
+  geom_text(size =4) + 
   ggtitle("Species - averaged across sites")
 
 NMDS.cpue_year$points %>% as.data.frame()  %>%
@@ -140,25 +130,14 @@ NMDS.cpue_year$points %>% as.data.frame()  %>%
   cbind(., Year= as.numeric(rownames(.))) %>%
   as.data.frame() %>%
   arrange(Year) %>% 
-  ggplot(aes(x = MDS1, y = MDS2, label = Year)) + 
-  geom_text(aes(color = as.numeric(Year)), size =4) + 
+  ggplot(aes(x = MDS1,
+             y = MDS2,
+             label = Year)) + 
+  geom_text(aes(color = as.numeric(Year)),
+            size =4) + 
   scale_color_gradientn(colours = rainbow(5)) +
   labs(color = "Year") + 
   ggtitle("Years - averaged across sites")
-
-
-NMDS.cpue_year$points %>% as.data.frame()  %>%
-  select(MDS1, MDS2) %>% 
-  cbind(., Year= as.numeric(rownames(.))) %>%
-  as.data.frame() %>%
-  arrange(Year) %>%
-  mutate(Year_bin = .bincode(Year, bins)) %>% 
-  ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
-  geom_text(size =4) + 
-  stat_ellipse(level = .9) +
-  labs(color = "Year") + 
-  ggtitle("Years - averaged across sites")  + 
-  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
 
 # Day averaged NMDS across sites --------------
 
@@ -169,69 +148,28 @@ CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
   mutate(sumrow = rowSums(.)) %>%
   filter(sumrow>0) %>%
   select(-sumrow)))
+
 ## Creating row names 
+years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
+  separate(names, 
+           into = c("YEAR", "SITE"))
+
+## Points through time dist matrix 
+nmds.dist = dist(NMDS.cpue_year$points, upper = T) %>% 
+  as.matrix(.) %>% as.data.frame()
+
+
+data.frame(dist = nmds.dist$`2000`, year = unique(years_bef$YEAR)) %>% ggplot(aes(x = as.numeric(year), y = dist)) + geom_point() + ylab("Distance from 2000") + xlab("Year")
+
+
+
+
 years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
   separate(names, into = c("YEAR", "SITE"))
 
 years_gln = data.frame(names = rownames(CPUE.w.sec.gln)) %>%
   separate(names, into = c("YEAR", "SITE"))
 
-years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
-  separate(names, into = c("YEAR", "SITE"))
-# Running NMDS
-NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, # Our community-by-species matrix
-             k=3) 
-
-## Points through time dist matrix 
-nmds.dist = dist(CPUE.w.sec.a, upper = T) %>% as.matrix(.) %>% as.data.frame()
-data.frame(dist = nmds.dist$`2000`, year = unique(years_bef$YEAR)) %>% ggplot(aes(x = as.numeric(year), y = dist)) + geom_point() + ylab("Distance from 2000") + xlab("Year")
-
-
-# Diagnostic plots 
-stressplot(NMDS.cpue_siteyear)
-plot(NMDS.cpue_siteyear)
-
-NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
-  select(MDS1, MDS2) %>% 
-  as.data.frame() %>%
-  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
-  geom_text(size =4)+ 
-  ggtitle("No SMB")
-
-
-NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
-  select(MDS1, MDS2) %>% 
-  cbind(., Year= rownames(.)) %>%
-  separate(Year, into = c("Year","Site"), remove = F) %>%
-  as.data.frame() %>%
-  arrange(Year) %>% 
-  mutate(Year = .bincode(Year, bins )) %>%
-  ggplot(aes(x = MDS1, y = MDS2, color = as.character(Year))) + 
-  geom_point(size =1) + 
-  stat_ellipse() +
-  labs(color = "Year") + 
-  ggtitle("Years: by site") + 
-  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
-
-## ANOSIM  -----------
-data(dune)
-data(dune.env)
-dune.dist <- vegdist(dune)
-attach(dune.env)
-dune.ano <- anosim(dune.dist, Management)
-summary(dune.ano)
-plot(dune.ano)
-
-
-cpue.dist = vegdist(CPUE.w.sec.a)
-cpue.ano = anosim(cpue.dist, year_bin)
-summary(cpue.ano)
-plot(cpue.ano)
-
-anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999)
-
-
-ano = anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR, permutations = 9999)
 
 
 ## Mantel test -------- 
@@ -243,15 +181,6 @@ time.dist = dist(as.numeric(row.names(CPUE.w.sec.a)), method = "euclidean")
 temp.dist = dist(as.numeric(temp_string_air$Prior30days, method = "euclidean"))
 # Ice out Matrix
 ice.dist = dist(as.numeric(ice_out$Ice.out.date, method = "euclidean"))
-
-# SMB overall CPUE matrix 
-smb.dist= dist(as.numeric(CPUE.w.sec.a.smb$SMB))
-# SMB CPUE offset 
-smb.offset = dist(c(NA, CPUE.w.sec.a.smb$SMB)[-23])
-# SMB small 
-smb.small = dist(as.numeric(smb.size[,2]), method = "euclidean")
-# SMB large 
-smb.large = dist(as.numeric(smb.size[,4]), method = "euclidean")
 
 
 
@@ -308,103 +237,8 @@ mm = ggplot(mat, aes(y = aa, x = zz)) +
 
 mm
 
-# SIMPER -------------
-
-sim = simper(CPUE.w.sec.a, rownames(CPUE.w.sec.a),permutations = 999)
-summary(sim)
-meta = cbind(year = as.numeric(rownames(CPUE.w.sec.a)), temp_string$mean_temp)
-simper.pretty(CPUE.w.sec.a, meta, c('year'), perc_cutoff=1, low_cutoff = 'y', low_val=0.01 ,'year')
-
-# Making simper output understandable
-l = list()
-for(i in names(sim)){
-  h = sim[[i]]
-  sub =  h$p
-  l[[i]] = sub
-}
 
 
-## try making the size of each dot the avg or cumsum of the points 
-pretty = matrix(unlist(l), length(names(sim)), 10)
-colnames(pretty) = h$species
-pretty = pretty %>% as.data.frame() %>%
-  mutate(year = names(sim)) %>%
-  separate(year, into = c("Y1", "Y2")) %>%
-  mutate(Y1 = as.numeric(Y1)) %>%
-  mutate(Y2 = as.numeric(Y2)) %>%
-  pivot_longer(BB:WS, names_to = "species", values_to = "p_value") %>%
-  filter(p_value < .05)
-  
-pretty %>% ggplot(aes(x = Y1,
-                      y = Y2, 
-                      color = species)) + 
-  geom_jitter()
-
-counts = pretty %>% group_by(species) %>%
-  summarise(impact = n())
-
-left_join(pretty, counts) %>% 
-  ggplot(aes(x = Y1,                                         y = Y2,
-  color = species,                                          size = impact/100)) + 
-  geom_jitter() + 
-  labs(size = "Impact")
-
-
-
-
-av = list()
-for(i in names(sim)){
-  h = sim[[i]]
-  l[[i]] =  h$p
-  av[[i]] = h$average
-}
-
-pretty = matrix(unlist(l), length(names(sim)), 10)%>% as.data.frame() %>% 
-  mutate(id = c(1:nrow(.))) 
-avg = matrix(unlist(av), length(names(sim)),10) %>% as.data.frame() %>% 
-  mutate(id = c(1:nrow(.))) 
-colnames(avg) = c(h$species, "ID")
-colnames(pretty) = c(h$species,"ID")
-pretty = pretty %>%
-  mutate(year = names(sim))%>% 
-  pivot_longer(BB:WS, names_to= "species", values_to = "p_value")
-avg = avg %>%
-  mutate(year = names(sim))%>% 
-  pivot_longer(BB:WS, names_to= "species", values_to = "avg")
-
-dat_simper = left_join(pretty, avg) %>%
-  separate(year, into = c("Y1", "Y2")) %>%
-  mutate(Y1 = as.numeric(Y1)) %>%
-  mutate(Y2 = as.numeric(Y2)) %>%
-  filter(p_value < .05)
-
-dat_simper %>% ggplot(aes(x = Y1, y = Y2, color = species, size = avg)) + 
-  geom_point() +
-  labs(size = "Average Contribution (SIMPER)", color = "Species") + 
-  theme(axis.title.y = element_blank(),
-        axis.title.x = element_blank())
-
-
-## Standardizing CPUE with z-scores ----------------------------------
-
-CPUE.w.sec.a %>% mutate(across(everything(),~scale(.), na.rm = TRUE)) %>% 
-  mutate(Year = rownames(.)) %>%
-  pivot_longer(-Year, names_to = "Species", values_to = "CPUE") %>%
-  ggplot(aes(x = as.numeric(Year), y =CPUE)) + 
-  geom_point() +
-  #geom_line() + 
-  #facet_wrap(~Species) +
-  geom_smooth(se = F)
-
-
-
-CPUE.w.sec %>% mutate(across(everything(),~scale(.), na.rm = TRUE)) %>% 
-  mutate(Year = years_bef$YEAR) %>%
-  pivot_longer(-Year, names_to = "Species", values_to = "CPUE") %>%
-  ggplot(aes(x = as.numeric(Year), y =CPUE, color = Species)) + 
-  #geom_point() +
-  geom_line() + 
-  facet_wrap(~Species)
 
 
 
@@ -913,3 +747,84 @@ CPUE.w.sec.a %>%
   geom_line() +
   ylab("CPUE") + 
   xlab("Year")
+
+
+
+
+
+### Old code -------------------------
+## Year Bins for NMDS plotting 
+### At this point - playing around with 5-6yr bins
+bins = c(1996, 2000, 2005, 2010, 2015, 2019) ## Define this yourself
+bins = c(1996,2000,2007,2011,2017,2019)
+names = bins[-1] ## This goes into legends for visualization 
+year_bin =  (data.frame(treat = c(1998:2019)) %>%
+               separate(treat, into = c("Year", "Site")) %>% 
+               mutate(Year = .bincode(as.numeric(.$Year),
+                                      ## Define desired breaks below
+                                      breaks = bins)) %>% 
+               select(Year))$Year
+#c(1999,2000, 2005, 2012, 2019))) old options for breaks
+#breaks = c(1999,2000, 2009, 2011, 2019))) old options for breaks
+
+## binned NMDS
+NMDS.cpue_year$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>%
+  mutate(Year_bin = .bincode(Year, bins)) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
+  geom_text(size =4) + 
+  stat_ellipse(level = .9) +
+  labs(color = "Year") + 
+  ggtitle("Years - averaged across sites")  + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+
+# Running NMDS ---- by site + by year
+NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, k=3) 
+# Diagnostic plots 
+stressplot(NMDS.cpue_siteyear)
+plot(NMDS.cpue_siteyear)
+
+NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("No SMB")
+
+
+NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= rownames(.)) %>%
+  separate(Year, into = c("Year","Site"), remove = F) %>%
+  as.data.frame() %>%
+  arrange(Year) %>% 
+  mutate(Year = .bincode(Year, bins )) %>%
+  ggplot(aes(x = MDS1, y = MDS2, color = as.character(Year))) + 
+  geom_point(size =1) + 
+  stat_ellipse() +
+  labs(color = "Year") + 
+  ggtitle("Years: by site") + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
+
+
+## ANOSIM  -----------
+data(dune)
+data(dune.env)
+dune.dist <- vegdist(dune)
+attach(dune.env)
+dune.ano <- anosim(dune.dist, Management)
+summary(dune.ano)
+plot(dune.ano)
+
+
+cpue.dist = vegdist(CPUE.w.sec.a)
+cpue.ano = anosim(cpue.dist, year_bin)
+
+
+anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999)
+
+
+ano = anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR, permutations = 9999)
