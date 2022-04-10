@@ -66,7 +66,7 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "RWF", "SMB","RS") ## Remove SMB + RWF (targeted 2000s)
+remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
 
 
@@ -154,7 +154,7 @@ years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
   separate(names, 
            into = c("YEAR", "SITE"))
 
-## Points through time dist matrix 
+## Points through time dist matrix ------------
 nmds.dist = dist(NMDS.cpue_year$points, upper = T) %>% 
   as.matrix(.) %>% as.data.frame()
 

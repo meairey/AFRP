@@ -14,7 +14,8 @@ v = CPUE.w.sec %>%
   mutate(y_s = rownames(CPUE.w.sec)) %>%
   pivot_longer(1:length(species),
                names_to = "Species") %>%
-  separate(y_s, into = c("year", "site")) %>%
+  separate(y_s, 
+           into = c("Year", "site")) %>%
   unite("ID", 
         c(site:Species), 
         sep = "_", 
@@ -24,6 +25,7 @@ v = CPUE.w.sec %>%
 ## Fixed change point using multiple sites a year as multivariate --------- 
 for(i in species){
   
+  # Set up data frame
   x = v %>% filter(Species == i) %>%
     mutate(value = as.numeric(value)) %>% 
     select(-Species) %>%
@@ -31,50 +33,89 @@ for(i in species){
     pivot_wider(values_from = value,
                 names_from = ID) %>%
     replace(is.na(.), 0) %>%
-    select(-year) %>%
+    select(-Year) %>%
     as.matrix()
   rownames(x) = rownames(CPUE.w.sec.a)
   
-  output = e.divisive(x, R = 499, alpha = 1, min.size = 2, sig.lvl = .5)
+  # Run changepoint analysis 
+  output = e.divisive(x, 
+                      R = 499, 
+                      alpha = 1, 
+                      min.size = 2,
+                      sig.lvl = .05)
+  
+  # Format data
   dat = data.frame(Year = rownames(CPUE.w.sec.a), 
                    color = output$cluster)
-  pl = ggplot(dat,aes(x = Year,
-                      y = color,
-                      col = as.character(color))) + 
-    geom_point() + ggtitle(paste(i))
+  v_mod = left_join(v,dat)
   
+  # Linear model to overlap on plots
+  lin.reg = summary(lm(v_mod$value~as.numeric(v_mod$Year)))
+  p_value = round(lin.reg$coefficients[2,4],4)
+  r_2 = round(lin.reg$adj.r.squared,4)
+  y_point = max(x) 
+  # CB pallete
+  cbbPalette <- c("#000000",  "#56B4E9", "#D55E00","#009E73", "#F0E442", "#0072B2",  "#CC79A7","#E69F00")
+  # Plots
+  pl = v_mod %>%
+    filter(Species == i)%>% 
+    ggplot(aes(x = as.numeric(Year), 
+               y = value)) +
+    geom_point(aes(col = as.character(color)), alpha = .2, size = 2) + 
+    #geom_text(x= 2010, y= y_point, label="Scatter plot") + 
+    geom_smooth(method = "lm") + 
+    #xlab("Year") + 
+    ylab(paste(i,"CPUE")) +
+    xlim(1998, 2021) + 
+    theme(text = element_text(size = 16)) + 
+    theme(legend.position="none") + 
+    theme(axis.title.x = element_blank()) + 
+    theme(axis.text.x = element_text(angle = 90)) + 
+    scale_colour_manual(values=cbbPalette)
+    
   print(pl)
 }
 
 ## Average value per year 
 for(i in species){
   
-  x = v %>%  group_by(Species, year)%>% 
+  x = v %>%  group_by(Species, Year)%>% 
     summarise(mean_CPUE = mean(value)) %>%
     filter(Species == i) %>%
     select(-Species) %>%
     replace(is.na(.), 0) %>%
     ungroup() %>%
-    select(-c(year, Species)) %>%
+    select(-c(Year, Species)) %>%
     #mutate(mean_CPUE = scale(mean_CPUE)) %>%
     as.matrix()
   #x = x*10000
   rownames(x) = rownames(CPUE.w.sec.a)
-  output = e.divisive(x, R = 499, alpha = 1, k= 2, sig.lvl = .05, min.size = 2)
+  output = e.divisive(x, 
+                      R = 499,
+                      alpha = 1,
+                      sig.lvl = .05,
+                      min.size = 2)
+  
   dat = data.frame(Year = rownames(CPUE.w.sec.a), 
                    color = output$cluster)
-  pl = ggplot(dat,aes(x = Year,
-                      y = color,
-                      col = as.character(color))) + 
-    geom_point() + ggtitle(paste(i))
   
+  v_mod = left_join(v,dat)
+  pl = v_mod %>%
+    filter(Species == i)%>% 
+    ggplot(aes(x = as.numeric(Year), 
+               y = value)) +
+    geom_point(aes(col = as.character(color)), alpha = .2) + 
+    labs(col = paste(i, "Cluster")) + 
+    geom_smooth(method = "lm") + 
+    ylab("Year") + 
+    xlab("CPUE")
+    
+  
+
   print(pl)
 }
 
 
-set.seed(100)
-x1 = matrix(c(rnorm(100),rnorm(100,3),rnorm(100,0,2)))
-y1 = e.divisive(X=x1,sig.lvl=0.05,R=199,k=NULL,min.size=30,alpha=1)
 
            
 
@@ -143,35 +184,71 @@ ggplot(dat, aes(x = as.numeric(Year),
   geom_vline(xintercept = x.names$year[which(output$cluster > 1)][1])
   
   
-# Length based change point analysis 
+# Length based change point analysis ---------- 
   
-1 
+
 for(i in 1:length(species)){
+  
   x = BEF_data %>% filter(SPECIES == species[i]) %>% 
+    filter(YEAR >= 2000) %>%
     select(LENGTH, YEAR, SITE) %>% na.omit() %>% 
     group_by(YEAR, SITE) %>%
-    summarize(mean_L = mean(LENGTH))
+    summarize(median_L = mean(LENGTH,na.rm = T)) %>%
+    ungroup() %>%
+    pivot_wider(names_from = SITE, values_from = median_L)
   y = x$YEAR
   
-  x = x %>% select(mean_L)
+ # x = x %>% select(mean_L)
   
-  output = e.divisive(x, R= 499, alpha = 1)
-  
-  h = x %>% ggplot(aes(x = YEAR, y = mean_L, 
-                       col = as.character(output$cluster))) +
-    geom_point() +
+  output = e.divisive(x, R= 499, alpha = 1, min.size = 2, sig.lvl  = .05)
+  output_dat = data_frame(YEAR = unique(x$YEAR), 
+                          cluster = output$cluster)
+  dat = BEF_data %>%
+    filter(YEAR >= 2000) %>%
+    filter(SPECIES == species[i]) %>% left_join(output_dat)
+  lm_obj = summary(lm(dat$LENGTH ~ dat$YEAR, na.rm = T))
+  h = dat %>%
+    filter(SPECIES == species[i]) %>%
+    ggplot(aes(x = YEAR, y = LENGTH)) +
+    geom_point(aes(col = as.character(cluster),alpha = .06)) +
     labs(col = paste(species[i])) + 
-    ylab("Mean Length (mm) per site") + 
-    geom_vline(xintercept = 2010)
+    ylab("Length") +
+    geom_smooth(method = "lm") + 
+    ylab(paste(species[i], "Length")) + 
+    theme(text = element_text(size = 16)) + 
+    theme(legend.position="none") + 
+    theme(axis.title.x = element_blank()) + 
+    theme(axis.text.x = element_text(angle = 90)) + 
+    xlim(1999, 2021) + 
+    geom_text(x= 2019, 
+              y= 50,
+              label= round(lm_obj$coefficients[2,4],3)) +
+    scale_colour_manual(values=cbbPalette)
   
   print(h)
+  
+ 
   
 }
 
   
+before_after = c(1990, 2000, 2023)
+BEF_data %>% 
+  mutate(b_a = .bincode(YEAR, before_after)) %>%
+  ggplot(aes(x = as.character(b_a), y = LENGTH)) + 
+  geom_boxplot() + 
+  facet_wrap(~SPECIES) + 
+  xlab("Before vs. After")
+  scale_y_continuous(trans = "log10") 
+  
+
+
+
+
   
 x %>% ggplot(aes(x = YEAR, y = mean_L, 
                  col = as.character(output$cluster))) +
   geom_point() +
   labs(col = paste(species[i])) + 
   ylab("Mean Length (mm) per site")
+
