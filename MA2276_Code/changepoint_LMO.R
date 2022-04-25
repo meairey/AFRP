@@ -76,9 +76,85 @@ for(i in species){
   print(pl)
 }
 
-## Average value per year 
-for(i in species){
+
+# Length based change point analysis ---------- 
+
+
+for(i in 1:length(species)){
   
+  x = BEF_data %>% filter(SPECIES == species[i]) %>% 
+    filter(YEAR >= 2000) %>%
+    select(LENGTH, YEAR, SITE) %>% na.omit() %>% 
+    group_by(YEAR, SITE) %>%
+    summarize(median_L = mean(LENGTH,na.rm = T)) %>%
+    ungroup() %>%
+    pivot_wider(names_from = SITE, values_from = median_L)
+  
+  output = e.divisive(x, R= 499,
+                      alpha = 1,
+                      min.size = 2, 
+                      sig.lvl  = .05)
+  
+  output_dat = data_frame(YEAR = unique(x$YEAR), 
+                          cluster = output$cluster)
+  
+  dat = BEF_data %>%
+    filter(YEAR >= 2000) %>%
+    filter(SPECIES == species[i]) %>% 
+    left_join(output_dat)
+  
+  lm_obj = summary(lm(dat$LENGTH ~ dat$YEAR, 
+                      na.rm = T))
+  
+  h = dat %>%
+    filter(SPECIES == species[i]) %>%
+    ggplot(aes(x = YEAR, y = LENGTH)) +
+    geom_point(aes(col = as.character(cluster),
+                   alpha = .06)) +
+    labs(col = paste(species[i])) + 
+    ylab("Length") +
+    geom_smooth(method = "lm") + 
+    ylab(paste(species[i], "Length")) + 
+    theme(text = element_text(size = 16)) + 
+    theme(legend.position="none",
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 90)) + 
+    xlim(1999, 2021) + 
+    geom_text(x= 2019, 
+              y= 50,
+              label= round(lm_obj$coefficients[2,4],3)) +
+    scale_colour_manual(values=cbbPalette)
+  
+  print(h)
+  
+  
+  
+}
+
+
+before_after = c(1990, 2000, 2023)
+BEF_data %>% 
+  mutate(b_a = .bincode(YEAR, before_after)) %>%
+  ggplot(aes(x = as.character(b_a), y = LENGTH)) + 
+  geom_boxplot() + 
+  facet_wrap(~SPECIES) + 
+  xlab("Before vs. After")
+scale_y_continuous(trans = "log10") 
+
+
+
+BEF_data %>% 
+  filter(SPECIES == "CC") %>%
+  ggplot(aes(x = as.character(YEAR), y = LENGTH)) + 
+  geom_boxplot()
+
+
+
+
+
+## Average CPUE per year --------------------- 
+for(i in species){
+  i = species[2]
   x = v %>%  group_by(Species, Year)%>% 
     summarise(mean_CPUE = mean(value)) %>%
     filter(Species == i) %>%
@@ -109,19 +185,48 @@ for(i in species){
     geom_smooth(method = "lm") + 
     ylab("Year") + 
     xlab("CPUE")
+  
+  pl = ggplot(,aes(y = x[,1], x = as.numeric(rownames(x)), col = as.character(output$cluster))) + 
+    geom_point()+ 
+    ylab(paste(i,"CPUE")) + 
+    xlab("Year") + 
+    theme(legend.position = "none")
     
   
 
   print(pl)
 }
+summary(lm(x[,1] ~ as.numeric(rownames(x))))
 
 
 
-           
+## Testing if CC have increased in CPUE 
 
-# --------------
+CC_2000 = CPUE.w.sec$CC[which(years_bef == 2000)]
+CC_2019 = CPUE.w.sec$CC[which(years_bef == 2019)]
+t.test(CC_2000, CC_2019)           
+CC = BEF_data %>% filter(SPECIES == "LT") 
+summary(lm(CC$LENGTH~CC$YEAR))
+summary(lm(CPUE.w.sec$LT ~ as.numeric(years_bef$YEAR)))
 
 
+## Loading  in cp data --------------
+cp_data = read.csv("MA2276_Code/Data/Changepoint_data_analysis.csv") %>%
+  as.data.frame()
+
+rownames(cp_data) = cp_data$Species
+res = cor(t(cp_data %>% select(-Species)))
+corrplot(res, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+
+
+BEF_data %>% select(SPECIES, LENGTH) %>%
+  group_by(SPECIES) %>%
+  summarize(max = max(LENGTH, na.rm = T), 
+            avg = mean(LENGTH, na.rm = T))
+##
+
+B
   
 
 for(i in 1:length(species)){
@@ -183,72 +288,7 @@ ggplot(dat, aes(x = as.numeric(Year),
   labs(color = "Cluster")  
   geom_vline(xintercept = x.names$year[which(output$cluster > 1)][1])
   
-  
-# Length based change point analysis ---------- 
-  
 
-for(i in 1:length(species)){
-  
-  x = BEF_data %>% filter(SPECIES == species[i]) %>% 
-    filter(YEAR >= 2000) %>%
-    select(LENGTH, YEAR, SITE) %>% na.omit() %>% 
-    group_by(YEAR, SITE) %>%
-    summarize(median_L = mean(LENGTH,na.rm = T)) %>%
-    ungroup() %>%
-    pivot_wider(names_from = SITE, values_from = median_L)
-  y = x$YEAR
-  
- # x = x %>% select(mean_L)
-  
-  output = e.divisive(x, R= 499, alpha = 1, min.size = 2, sig.lvl  = .05)
-  output_dat = data_frame(YEAR = unique(x$YEAR), 
-                          cluster = output$cluster)
-  dat = BEF_data %>%
-    filter(YEAR >= 2000) %>%
-    filter(SPECIES == species[i]) %>% left_join(output_dat)
-  lm_obj = summary(lm(dat$LENGTH ~ dat$YEAR, na.rm = T))
-  h = dat %>%
-    filter(SPECIES == species[i]) %>%
-    ggplot(aes(x = YEAR, y = LENGTH)) +
-    geom_point(aes(col = as.character(cluster),alpha = .06)) +
-    labs(col = paste(species[i])) + 
-    ylab("Length") +
-    geom_smooth(method = "lm") + 
-    ylab(paste(species[i], "Length")) + 
-    theme(text = element_text(size = 16)) + 
-    theme(legend.position="none") + 
-    theme(axis.title.x = element_blank()) + 
-    theme(axis.text.x = element_text(angle = 90)) + 
-    xlim(1999, 2021) + 
-    geom_text(x= 2019, 
-              y= 50,
-              label= round(lm_obj$coefficients[2,4],3)) +
-    scale_colour_manual(values=cbbPalette)
-  
-  print(h)
-  
+
  
-  
-}
-
-  
-before_after = c(1990, 2000, 2023)
-BEF_data %>% 
-  mutate(b_a = .bincode(YEAR, before_after)) %>%
-  ggplot(aes(x = as.character(b_a), y = LENGTH)) + 
-  geom_boxplot() + 
-  facet_wrap(~SPECIES) + 
-  xlab("Before vs. After")
-  scale_y_continuous(trans = "log10") 
-  
-
-
-
-
-  
-x %>% ggplot(aes(x = YEAR, y = mean_L, 
-                 col = as.character(output$cluster))) +
-  geom_point() +
-  labs(col = paste(species[i])) + 
-  ylab("Mean Length (mm) per site")
 

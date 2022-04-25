@@ -8,8 +8,8 @@ library(lubridate)
 
 # Defining Data Sheets ----- 
 setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
-fish = read.csv("MA2276_Code/Data/2021_Measurement.csv")
-sample = read.csv("MA2276_Code/Data/2021_Sample.csv") %>%
+fish = read.csv("MA2276_Code/Data/Measurement_2021_Updated.csv")
+sample = read.csv("MA2276_Code/Data/SAMP_NEW.csv") %>%
   mutate(DATE_COL = mdy(DATE_COL)) %>%
   mutate(DATE_SET = mdy(DATE_SET)) %>%
   mutate(DAYS = DATE_COL - DATE_SET) %>%
@@ -28,6 +28,8 @@ sample = read.csv("MA2276_Code/Data/2021_Sample.csv") %>%
 sample = sample %>% mutate(
   effort_soak = DAYS + HOURS
 )
+
+write
 # Join/Filter ----
 
 # Data is filtered to select only fish and split out several columns

@@ -61,13 +61,24 @@ for(l in unique(k$SPECIES)){
 }
   
   
-slope_array %>% unlist() %>% matrix(., ncol = 1, nrow = 220) %>% as.data.frame() %>%
+slope_matrix = slope_array %>% 
+  unlist() %>% 
+  matrix(., ncol = 1, nrow = 220) %>% 
+  as.data.frame() %>%
   mutate(SPECIES = rep(unique(k$SPECIES), each = 22)) %>%
   mutate(YEAR = rep(c(1998:2019), 10)) %>%
   rename(slope = V1) %>%
-  ggplot(aes(x = YEAR, y = slope, col = SPECIES)) +
-  geom_point() + 
+  filter(SPECIES != "RS")
+
+summary(lm(slope_matrix$slope ~ slope_matrix$YEAR))
+
+
+slope_matrix %>%
+  ggplot(aes(x = YEAR, y = slope)) +
+  geom_point(aes(col = SPECIES)) + 
   theme(axis.text.x = element_text(angle = 90)) + 
   xlim(1996, 2021) + 
-  facet_wrap(~SPECIES)
+  geom_smooth(method = "lm")
+
+
   

@@ -158,10 +158,36 @@ years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
 nmds.dist = dist(NMDS.cpue_year$points, upper = T) %>% 
   as.matrix(.) %>% as.data.frame()
 
+before_after = c(1990, 2000, 2023)
 
-data.frame(dist = nmds.dist$`2000`, year = unique(years_bef$YEAR)) %>% ggplot(aes(x = as.numeric(year), y = dist)) + geom_point() + ylab("Distance from 2000") + xlab("Year")
+data.frame(dist = nmds.dist$`2000`,
+           year = unique(years_bef$YEAR)) %>%
+  ggplot(aes(x = as.numeric(year), y = dist)) + 
+  geom_point() +
+  ylab("Distance from 2000") + 
+  xlab("Year")
 
 
+datty = data.frame(dist = nmds.dist$`2000`, 
+           year = unique(years_bef$YEAR)) %>%
+  filter(year > 2000)
+summary(lm(datty$dist ~ as.numeric(datty$year)))
+
+data.frame(dist = nmds.dist$`2000`, 
+           year = unique(years_bef$YEAR)) %>% 
+  mutate(bin = .bincode(year, before_after)) %>%
+  ggplot(aes(x = as.numeric(year), y = dist, color = as.character(bin))) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F) + 
+  theme(legend.position = "none")
+
+
+## Correlation Matrices
+res <- cor(CPUE.w.sec.a)
+library(corrplot)
+
+corrplot(res, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
 
 
 years_tpn = data.frame(names = rownames(CPUE.w.sec.tpn)) %>%
@@ -208,13 +234,13 @@ aa = as.vector(cpue.dist)
 tt = as.vector(time.dist)
 gg = as.vector(ice.dist)
 hh = as.vector(temp.dist)
-zz = as.vector(smb.dist)
+#zz = as.vector(smb.dist)
 #new data frame with vectorized distance matrices
-mat = data.frame(aa,tt,hh,zz)
-mm = ggplot(mat, aes(y = aa, x = zz)) + 
-  geom_point(size = 4, alpha = 0.75, colour = "black",shape = 21, aes(fill = hh/10)) + 
+mat = data.frame(aa,tt,hh)
+mm = ggplot(mat, aes(y = aa, x = tt)) + 
+  geom_point(size = 4, alpha = 0.75, colour = "black",shape = 21, aes(fill = gg/10)) + 
   geom_smooth(method = "lm", colour = "black", alpha = 0.2) + 
-  labs(x = "Difference in Time (C)", y = "Bray-Curtis Dissimilarity", fill = "Difference in Prior 30 Days Temp (C)") + 
+  labs(x = "Difference in Time", y = "Bray-Curtis Dissimilarity", fill = "Difference in Ice Off") + 
   theme( axis.text.x = element_text(face = "bold",
                                     colour = "black",
                                     size = 12), 
