@@ -65,12 +65,11 @@ for(h in 1:8){
   #,color = rep(as.factor(unique(data$group,each = 1000))
   ## trying this - this is modified check out previous versions if it stops working
   p = p + geom_point(aes(x = ellip[,1,], y = ellip[,2,], color = (rep(as.factor(unique((dat[[3]]$group))),each = 1000))),size = 01, alpha = .09) +
-    ggtitle(lake$Name[h]) + 
+    ggtitle(lake$Water[h]) + 
     ylab("d15N") + xlab("d13C")   + 
     scale_color_manual(values = legend$color[sort(unique(dat[[4]]$group))], 
-                       labels =legend[sort(unique(dat[[4]]$group)),1],
-                       name = "Species"
-    )+ 
+                       labels =legend$common[sort(unique(dat[[4]]$group))],
+                       name = "Species")+ 
     theme(text = element_text(size = 13))
  
   
@@ -96,11 +95,17 @@ z = z + geom_point(aes(x = ellip[,1,], y = ellip[,2,],
                                     each = 1000))),
                        size = 01, 
                        alpha = .09) +
-  ggtitle(lake$Name[h]) + 
+  ggtitle(lake$Water[h]) + 
   ylab("d15N") + xlab("d13C") + 
   scale_color_manual(values = unique(legend$tax_col[sort(unique(dat[[3]]$group))]), 
                      labels =unique(legend$taxon[sort(unique(dat[[3]]$group))]),
                      name = "Species")
 z
+
+
+
+## Body size isotope 
+
+combo
 
 

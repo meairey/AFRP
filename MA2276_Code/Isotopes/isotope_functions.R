@@ -127,6 +127,10 @@ combo = read.csv("Data/SIA_Data.csv", header=T) %>%
   filter(Species != "NA" & Species !="PD_remove") %>%
   select(Species,group, Site,Water, d15N, d13C)
 
+lw_data = read.csv("Data/SIA_Data.csv", header=T) %>%
+  mutate(Sample.ID = as.numeric(Sample.ID)) %>% 
+  full_join(read.csv("MA2276_Code/Data/ADKwebs_Data.csv"))
+
 # Use data throughout other code, (i think it replaces combined?)
 data = combo  %>%
   data.frame(iso1 = .$d13C,
@@ -174,12 +178,18 @@ legend = combo %>%
   mutate(group = as.numeric(as.factor(group))) %>%
   arrange(group) %>%
   mutate(color = COLORS[1:length(unique(combo$Species))])
+legend$common = c("Brown Bullhead", "Bluntnose Minnow", "Blacknose Dace", "Creek Chub", "Common Shiner", "Fathead Minnow", "Finescale Dace", "Golden Shiner", "Chrosomus Hybrid", "Landlocked Salmon", "N. Redbelly Dace", "N. Pearl Dace", "Pumpkinseed Sunfish", "Rainbow Smelt", "Brook Trout", "White Sucker")
+legend$color[11] = "#ffcb2d"
+legend$color[8] = "#876e4a"
+legend$color[3] = "#495448"
+legend$color[16]="#8d7199"
+legend$color[13]="#869e8c"
 
 #legend  = species_legend[order(species_legend$group),]
 
 #legend$color = COLORS[1:16]
 
-#legend$color[11] = "#ffcb2d"
+
 
 
 
