@@ -1,7 +1,7 @@
 set.seed(250)
 #install.packages("ecp")
-
 library(ecp)
+library(dplyr)
 
 
 vec = vector()
@@ -20,7 +20,8 @@ v = CPUE.w.sec %>%
         c(site:Species), 
         sep = "_", 
         remove = F) %>%
-  select(-site)
+  dplyr::select(-site) %>%
+  mutate(value = value * 60 )
 
 ## Fixed change point using multiple sites a year as multivariate --------- 
 for(i in species){
@@ -28,12 +29,12 @@ for(i in species){
   # Set up data frame
   x = v %>% filter(Species == i) %>%
     mutate(value = as.numeric(value)) %>% 
-    select(-Species) %>%
+    dplyr::select(-Species) %>%
     mutate(value = log10(value+1)) %>%
     pivot_wider(values_from = value,
                 names_from = ID) %>%
     replace(is.na(.), 0) %>%
-    select(-Year) %>%
+    dplyr::select(-Year) %>%
     as.matrix()
   rownames(x) = rownames(CPUE.w.sec.a)
   
@@ -75,6 +76,12 @@ for(i in species){
     
   print(pl)
 }
+
+
+### Trying some new models for fitting the CPUE data -------
+
+
+
 
 
 # Length based change point analysis ---------- 
