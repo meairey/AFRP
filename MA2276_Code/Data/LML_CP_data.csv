@@ -1,0 +1,21 @@
+species ,year,direction,direction_shape,changepoint
+WS,2001,positive,+,1
+ST,2008,negative,-,1
+ST,2003,positive ,+,1
+SS,2004,positive,+,1
+SS,2015,positive ,+,1
+SMB,2002,positive,+,1
+RWF,2005,positive,+,1
+RWF,2008,negative ,-,1
+RWF,2012,negative,-,1
+RS,2010,positive,+,1
+RS,2012,negative,-,1
+PS,2006,positive,+,1
+PS,2012,positive ,+,1
+MM,2001,positive,+,1
+MM,2007,negative,-,1
+LT,NA,positive,+,1
+CS,NA,negative,-,1
+CC,NA,negative,-,1
+BB,2001,positive,+,1
+BB,2006,negative,-,1
