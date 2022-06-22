@@ -13,9 +13,18 @@ setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 
 
 
+
+
 ## Functions source -----------
 source("AFRP_Master_Code/AFRP_Functions.R")
 sample = read.csv("Data/FISH_SAMPLE_edited.csv")
+
+## Summary of MWT efforts in club 
+measurement = fish %>% select(YSAMP_N) %>% separate(YSAMP_N, into = c("Gear","Lake", "Year", "YSAMP")) %>% filter(Gear == "MWT") %>% unique() %>% group_by(Lake, Year) %>% summarise("times sampled" = n())
+
+measurement.simple = fish %>% select(YSAMP_N) %>% separate(YSAMP_N, into = c("Gear","Lake", "Year", "YSAMP")) %>% filter(Gear == "MWT") %>% unique() %>%  group_by(Lake) %>% summarise("times sampled" = n())
+
+m.s.sum = fish %>% select(YSAMP_N, SPECIES) %>% separate(YSAMP_N, into = c("Gear","Lake", "Year", "YSAMP")) %>% unique() %>% filter(Gear == "MWT") %>% group_by(Lake, SPECIES) %>% summarise("times sampled" = n())
 
 ## Graphics setup -------
 
@@ -66,25 +75,26 @@ rare = BEF_data_unfiltered %>% group_by(SPECIES) %>%
   summarise(frequency = n()) %>% 
   filter(frequency < rare_threashold)
 stocked = c("LLS", "RT") ## Stocked fish in little moose
-remove = c(stocked, rare$SPECIES, "RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
+remove = c(stocked, rare$SPECIES,"RWF", "SMB") ## Remove SMB + RWF (targeted 2000s)
 BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
 
 
-SMB_data = BEF_data_unfiltered
+#SMB_data = BEF_data_unfiltered
 
 # SMB manipulation for size class
 length_bins = c(0,100,200,600)
-SMB_BEF_data = BEF_data_unfiltered %>% filter(SPECIES == "SMB") %>% 
-  select(-SPECIES) %>%
-  mutate(SPECIES = .bincode(LENGTH, length_bins ))
 
-smb.size = ((CPUE_wide_seconds_avg(SMB_BEF_data) %>% 
-               column_to_rownames(., var = "YEAR")))
+#SMB_BEF_data = BEF_data_unfiltered %>% filter(SPECIES == "SMB") %>% 
+ # select(-SPECIES) %>%
+  #mutate(SPECIES = .bincode(LENGTH, length_bins ))
 
-smb.size %>% mutate(YEAR = c(1998:2019)) %>%
-                      pivot_longer(0:4,values_to = "CPUE") %>% 
-  ggplot(aes(x = YEAR, y = CPUE, col = name)) + geom_point() + 
-  scale_y_continuous(trans = "log10")
+#smb.size = ((CPUE_wide_seconds_avg(SMB_BEF_data) %>% 
+ #              column_to_rownames(., var = "YEAR")))
+
+#smb.size %>% mutate(YEAR = c(1998:2019)) %>%
+ #                     pivot_longer(0:4,values_to = "CPUE") %>% 
+  #ggplot(aes(x = YEAR, y = CPUE, col = name)) + geom_point() + 
+  #scale_y_continuous(trans = "log10")
 # Temperature + ice out string
 
 temp_string = BEF_data %>% select(TEMP_SAMP, YEAR) %>%
@@ -106,11 +116,12 @@ temp_string_air = left_join(BEF_samp_day, read.csv("Data/TIME_TEMP_OLDFORGE.csv"
 ### Notes
 #### NMDS$species = species
 #### NMDS$points = years
-
 CPUE.w.sec.a = ((CPUE_wide_seconds_avg(BEF_data) %>% 
-  column_to_rownames(., var = "YEAR"))) # Data setup
-CPUE.w.sec.a.smb =   ((CPUE_wide_seconds_avg(SMB_data) %>% 
-                         column_to_rownames(., var = "YEAR"))) # With SMB
+                   column_to_rownames(., var = "YEAR")))
+CPUE.w.sec.a = CPUE_wide_seconds_avg(BEF_data) %>% 
+  column_to_rownames(., var = "YEAR") # Data setup
+#CPUE.w.sec.a.smb =   ((CPUE_wide_seconds_avg(SMB_data) %>% 
+ #                        column_to_rownames(., var = "YEAR"))) # With SMB
 
 NMDS.cpue_year=metaMDS(CPUE.w.sec.a, # Our community-by-species matrix
                      k=2, try = 100) 
@@ -148,6 +159,26 @@ CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
   mutate(sumrow = rowSums(.)) %>%
   filter(sumrow>0) %>%
   select(-sumrow)))
+# Running NMDS ---- by site + by year
+NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, k=3) 
+# Diagnostic plots 
+stressplot(NMDS.cpue_siteyear)
+plot(NMDS.cpue_siteyear)
+
+
+
+
+NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("No SMB")
+
+
+CPUE.w.sec
+
+
 
 ## Creating row names 
 years_bef = data.frame(names = rownames(CPUE.w.sec)) %>%
@@ -178,8 +209,9 @@ data.frame(dist = nmds.dist$`2000`,
   mutate(bin = .bincode(year, before_after)) %>%
   ggplot(aes(x = as.numeric(year), y = dist, color = as.character(bin))) + 
   geom_point() + 
-  geom_smooth(method = 'lm', se = F) + 
+  geom_line() + 
   theme(legend.position = "none")
+
 
 
 ## Correlation Matrices
@@ -813,11 +845,11 @@ NMDS.cpue_siteyear=metaMDS(CPUE.w.sec, k=3)
 stressplot(NMDS.cpue_siteyear)
 plot(NMDS.cpue_siteyear)
 
-NMDS.cpue_siteyear$species %>% as.data.frame()  %>%
+NMDS.cpue_siteyear$points %>% as.data.frame()  %>%
   select(MDS1, MDS2) %>% 
   as.data.frame() %>%
-  ggplot(aes(x = MDS1, y = MDS2, label = rownames(NMDS.cpue_year$species))) + 
-  geom_text(size =4)+ 
+  ggplot(aes(x = MDS1, y = MDS2)) + 
+  geom_point()+ 
   ggtitle("No SMB")
 
 
@@ -854,3 +886,17 @@ anosim(CPUE.w.sec.a, distance = "bray", grouping = year_bin, permutations = 9999
 
 
 ano = anosim(CPUE.w.sec, distance = "bray", grouping = years_bef$YEAR, permutations = 9999)
+
+## binned NMDS
+NMDS.cpue_year$points %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  cbind(., Year= as.numeric(rownames(.))) %>%
+  as.data.frame() %>%
+  arrange(Year) %>%
+  mutate(Year_bin = .bincode(Year, bins)) %>% 
+  ggplot(aes(x = MDS1, y = MDS2, label = Year, color = as.character(Year_bin))) + 
+  geom_text(size =4) + 
+  stat_ellipse(level = .9) +
+  labs(color = "Year") + 
+  ggtitle("Years - averaged across sites")  + 
+  scale_color_manual(labels =  bins[2:6], values= unique(year_bin))
