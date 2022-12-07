@@ -1,7 +1,7 @@
-fish = read.csv("Data/FISH_MEASUREMENT.csv")
-sample = read.csv("Data/FISH_SAMPLE.csv")
-sites = read.csv("Data/SITES.csv")
-shoreline_length = read.csv("Data/BEFsites_LengthAndHabitat.csv")
+fish = read.csv("MA2276_Code/Data/FISH_MEASUREMENT.csv")
+sample = read.csv("MA2276_Code/Data/FISH_SAMPLE.csv")
+sites = read.csv("MA2276_Code/Data/SITES.csv")
+shoreline_length = read.csv("MA2276_Code/Data/BEFsites_LengthAndHabitat.csv")
 
 species = unique(fish$SPECIES)
 
@@ -71,23 +71,23 @@ CPUE_long_seconds_habitat = function(data_input){
 
 ## CPUE_wide does not average across habitat
 CPUE_wide_seconds_avg = function(data_input){
-cat =   data_input %>%
-  select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
-         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
-  group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
-  count() %>% ## Abundance per year, site, species
-  ungroup() %>%
-  complete(., nesting(WATER, YEAR, DAY_N, SITE, EFFORT, HAB_1), SPECIES) %>%
-  replace_na(list(CPUE_seconds = 0, n = 0)) %>%
-  mutate(CPUE_seconds = n / EFFORT) %>%
-  select(-n) %>%
-  mutate(across(everything(), ~replace_na(.x,0))) %>%
-  as.data.frame() %>% select(SPECIES,
-                             CPUE_seconds, 
-                             SITE, DAY_N, YEAR) %>% 
-    group_by(YEAR, SPECIES) %>% 
-    summarise(cpue = mean(CPUE_seconds)) %>%
-    pivot_wider(names_from = SPECIES, values_from = cpue)
+  cat =   data_input %>%
+    select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
+           FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
+    group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT, HAB_1) %>%
+    count() %>% ## Abundance per year, site, species
+    ungroup() %>%
+    complete(., nesting(WATER, YEAR, DAY_N, SITE, EFFORT, HAB_1), SPECIES) %>%
+    replace_na(list(CPUE_seconds = 0, n = 0)) %>%
+    mutate(CPUE_seconds = n / EFFORT) %>%
+    select(-n) %>%
+    mutate(CPUE_seconds = replace_na(CPUE_seconds,0)) %>%
+    as.data.frame() %>% select(SPECIES,
+                               CPUE_seconds, 
+                               SITE, DAY_N, YEAR) %>% 
+      group_by(YEAR, SPECIES) %>% 
+      summarise(cpue = mean(CPUE_seconds)) %>%
+      pivot_wider(names_from = SPECIES, values_from = cpue)
 }
 
 ## CPUE_wide_seconds not averaged across sites
