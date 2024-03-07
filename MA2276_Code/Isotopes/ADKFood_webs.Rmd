@@ -1,5 +1,8 @@
 ```{r}
+install.packages("spatstat.data")
+library(spatstat)
 library(dplyr)
+library(SIBER)
 library(ggplot2)
 x=read.csv("ADKwebs_Data.csv", header=T)
 cyprinid= c("FHM","NRD","CC","GS","PD","CS","BM","BND")

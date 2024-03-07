@@ -1,0 +1,1263 @@
+---
+title: "LML Paper 3 - Sites"
+author: "Montana"
+date: "2022-08-09"
+output: html_document
+---
+
+
+## Goals 
+
+------------------------------------------------------
+
+The goal of this project is to understand the importance of site-specific variation
+in understanding the dynamics in Little Moose Lake
+
+  * Additionally: we aim to examine littoral-pelagic coupling
+  
+  
+------------------------------------------------------
+  
+## Analysis 
+
+Objective 1: 
+
+  * Determine if specific habitats appear most important to a species growth or decline
+  
+    * Analysis - change point analysis for each of habitats and summary graphs (DONE)
+    
+    * Too basic - but find a way to just describe means AKA which habitat has highest population 
+  
+Objective 2: 
+
+  * Examine which species traits that are related to success in different habitats
+  
+Objective 3: 
+
+  * Examine the role of size on species pop growth within certain habitats 
+  
+Objective 4: would need some more thought
+
+  * Network analysis or other spatial analysis that allows you to examine spillover from important sites into those around them 
+  
+--------------------------------------------------------
+
+## Results 
+
+--------------------------------------------------------
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+```
+
+
+```{r, echo = F, warning = F, message = F}
+# Setup
+library(corrplot)
+library(Hmisc)
+library(MASS)
+require(pscl) # alternatively can use package ZIM for zero-inflated 
+library(lmtest)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(vegan)
+library(RColorBrewer)
+library(ggridges)
+library(ecp)
+library(dplyr)
+library(knitr)
+
+## Functions source -----------
+source("AFRP_Master_Code/AFRP_Functions.R",local = knitr::knit_global())
+sample = read.csv("MA2276_Code/Data/FISH_SAMPLE_2022_editedsitenumbers.csv")
+
+
+# Boat Electrofishing Data
+BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
+                                  gear_code = "NAF", 
+                                  species = species) %>% 
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998)
+
+# Removing species ---------------
+`%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
+rare_threashold = 50 ## change this based on preference
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
+  summarise(frequency = n()) %>% 
+  filter(frequency < rare_threashold)
+stocked = c("LLS", "RT") ## Stocked fish in little moose
+remove = c(stocked, rare$SPECIES,"RWF") ## Remove SMB + RWF (targeted 2000s)
+# I'm also going to remove LT and RS because I want to focus mostly on native littoral fishes 
+
+
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove) %>% filter(YEAR < 2020)
+
+## Creating a data frame that defines neighboring habitat sites 
+neighbor =read.csv("Data/BEFsites_LengthAndHabitat.csv") %>%
+  filter(Water == "LML") %>%
+  select(SITE, Habitat, Actual_Order, HAB_SITE) %>%
+  mutate(SITE = as.numeric(SITE))
+
+
+# Modifying to combine sites of the same habitat type that are next to each other
+
+##BEF_data = BEF_data %>% mutate(SITE = as.numeric(SITE)) %>%  left_join(neighbor) %>% 
+ # rename(SITE_actual = SITE) %>% 
+ # rename(SITE = HAB_SITE)
+
+# ------------------------------
+
+site_hab = BEF_data %>% select(SITE, HAB_1) %>%
+  rename(Site = SITE) %>%
+  unique() %>% arrange(Site)
+
+
+CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow)))
+
+
+cpue.habs = CPUE.w.sec %>% 
+  mutate(names = rownames(.)) %>% 
+  separate(names, into = c("year", "Site")) %>%
+  #mutate(Site = as.numeric(Site)) %>% 
+  left_join(site_hab) %>%
+  select(Site, HAB_1)
+
+species = colnames(CPUE.w.sec)
+
+
+
+
+```
+
+
+
+
+#### Objective 1
+
+-----------------------------------------------------------------------
+
+#### Which habitats host the highest righnest + density of species 
+
+
+```{r}
+## Very basic - compare first three years of the experiment to the last three years of the experiment
+
+v = CPUE.w.sec %>% 
+  mutate(y_s = rownames(CPUE.w.sec)) %>%
+  mutate(HAB_1 = cpue.habs$HAB_1) %>%
+  pivot_longer(1:length(species),
+               names_to = "Species") %>%
+  separate(y_s, 
+           into = c("Year", "site")) %>%
+  unite("ID", 
+        c(site:Species), 
+        sep = "_", 
+        remove = F) %>%
+  select(-site)%>%
+  mutate(value = value * 60 * 60 )
+
+
+
+```
+
+
+#### These are the changepoint analyses of all habitats and species 
+
+```{r, echo = F, warning=F, message= F, results = F}
+## Habitat changepoints ------------------
+vec = vector()
+p.val = vector()
+species = colnames(CPUE.w.sec)
+change_points_list = list()
+v = CPUE.w.sec %>% 
+  mutate(y_s = rownames(CPUE.w.sec)) %>%
+  mutate(HAB_1 = cpue.habs$HAB_1) %>%
+  pivot_longer(1:length(species),
+               names_to = "Species") %>%
+  separate(y_s, 
+           into = c("Year", "site")) %>%
+  unite("ID", 
+        c(site:Species), 
+        sep = "_", 
+        remove = F) %>%
+  select(-site)%>%
+  mutate(value = value * 60 * 60 )
+summary_graph_data = list()
+
+color_fixed = data.frame(hex = c("#F8766D","#00BFC4","#004D40","#00BFC4"), color = c(1:4))
+## Fixed change point using multiple sites a year as multivariate --------- 
+for(i in 1:length(CPUE.w.sec)){
+  list_habitats = list()
+    for(h in c("R","RW","S","SW")){
+      # Set up data frame
+      x = v %>% filter(Species == species[i], HAB_1 == h) %>%
+        mutate(value = as.numeric(value)) %>% 
+        select(-Species, -HAB_1) %>%
+        mutate(value = log10(value+1)) %>%
+        pivot_wider(values_from = value,
+                    names_from = ID) %>%
+        replace(is.na(.), 0) %>%
+        mutate(Year = as.character(Year)) %>%
+        column_to_rownames("Year") %>%
+        #select(-Year) %>%
+        as.matrix()
+      
+      
+      #rownames(x) = unique(v$Year)
+      
+    # Run changepoint analysis ---------------
+    output = e.divisive(x, 
+                        R = 499, 
+                        alpha = 1, 
+                        min.size = 2,
+                        sig.lvl = .05)
+    
+    # Format data -------------------------
+    dat = data.frame(Year = rownames(x), 
+                     color = output$cluster)
+    v_mod = left_join(v,dat)
+  # Plots
+  
+  # Filtering out the data for this species habitat combo
+  hab_species_data = v_mod %>%
+    filter(Species == species[i], HAB_1 == h)
+  # Create a list to put the above data into
+  list_habitats[[h]] = hab_species_data
+  
+  }
+  
+  # Uniting the data with the habitat information in it
+  cpoint_dataframe = rbind(list_habitats[[1]],list_habitats[[2]], list_habitats[[3]],list_habitats[[4]])
+  
+  # Creating the changepoint graphs--------------
+  graph_dat = cpoint_dataframe %>% left_join(color_fixed)
+  graph = graph_dat %>% ggplot(aes(x = as.numeric(Year), 
+                            y = value)) + 
+    theme_minimal() +
+    geom_point(color = graph_dat$hex, size = 3) +
+    facet_wrap(~HAB_1) + 
+    theme(axis.text.x = element_text(angle = 90, size = 12),
+          legend.position = "none") + 
+    xlim(1998, 2021) +
+    ylab(paste(species[i],"CPUE")) +
+    xlab("Year")
+  print(graph)
+  
+  # Pulling together data for summary graphs
+  summary_data = cpoint_dataframe %>% 
+    group_by(Year, HAB_1, Species, color) %>%
+    summarize(median = median(value), mean = mean(value))
+  
+  cp_summary_list = list()
+  blank_data = data.frame(HAB_1 = NA,
+                                    Species = NA,
+                                    color = NA, 
+                                    min = NA)
+  cp_summary_list[[1]] = blank_data
+  cp_summary_list[[2]] = blank_data
+  cp_summary_list[[3]] = blank_data
+  cp_summary_list[[4]] = blank_data
+  
+  # Filling out the information in the summary list 
+  
+  if((2 %in% summary_data$color) == TRUE){
+    for(z in 1:(max(summary_data$color)-1)){
+    ## Creats a point for every changepoint that occurs
+    cp_summary_list[[z]] = summary_data %>% filter(color > z) %>% 
+      ungroup() %>% group_by(HAB_1, Species, color) %>% 
+      summarize(min = min(Year))
+    
+    }
+    # Fill out any continuous data with NAs and the species info
+  }else(cp_summary_list[[i]] = data.frame(HAB_1 = NA, Species = species[i], color = 1, min = NA))
+ 
+  # Unlist the summary data to make into a dataframe 
+  unlisted_summary = rbind(cp_summary_list[[1]],cp_summary_list[[2]], cp_summary_list[[3]],cp_summary_list[[4]])
+  
+  # Calculate the median CPUE for each changepoint section (or the whole thing)
+  median_data = summary_data %>% ungroup() %>% group_by(HAB_1, Species, color) %>% 
+    summarize(median = median(median), 
+              mean = mean(mean))
+  
+  # Add in the regressions 
+  unlisted_summary = full_join(unlisted_summary, median_data)
+  summary_graph_data[[i]] = unlisted_summary
+ 
+}
+
+```
+
+
+###### Note - graphs don't print in .RMD
+
+##### Major take-aways 
+
+
+  * Some fish (BB) show some initial recovery at R. Then decline across all (or most habitats)
+  
+  * Some fish (CC, CS) show initial recovery at woody habitat/s (SW and RW) and delayed, but large recovery at non-woody (R, S)
+  
+      * CC - initial at RW and SW. Big, delayed at S.
+      
+      * CS - initial at SW. Big delayed at S. Another, small increase, at R.  
+      
+      * MM - initial (big) at SW. Delayed at S. 
+      
+  * Some fish (PS) show initial recovery as a cp or continuous gradual change at woody habitats, and deylayed CP at non-woody
+  
+      * PS - continuous change at SW sites (largest CPUE), initial increase at RW sites
+      
+      * Delayed CP at R and S in the same year
+  
+  * Some fish (ST) have general declines across all habitats
+  
+      * ST - have highest abundances in SW - never any CP - and appears to increase to a peak in 2005 in woody habitats before declining. 
+      
+      * ST have a delayed increased CP in S  and a delayed decreasing CP in R
+  
+  * Some (WS) fish have general increases across all habitats 
+  
+      * WS have an initial CP in R, then a negative CP in R but it stabilizes at a pop size higher than pre-removal
+      
+      * WS look (i need to do a regression) to have increasing pop levels and stabilize at higher than pre-removal
+      
+  * SMB have a relatively lower abundance within S/SW habitats. 
+  
+      * Highest relative abundances over R 
+      
+
+
+##### Next steps ----------------------- 
+
+  * How does size fit into this story? Are recoveries at W habitat made up of juveniles and recoveries of non-woody habitat all foraging adults? 
+  
+
+
+----------------------------------------------------------------------
+
+#### Summary graphs 
+
+
+
+```{r, echo = F, warning=F, message= F, error=F, results='hide'}
+un_sum = rbind(summary_graph_data[[1]],
+               summary_graph_data[[2]],
+               summary_graph_data[[3]],
+               summary_graph_data[[4]],
+               summary_graph_data[[5]],
+               summary_graph_data[[6]],
+               summary_graph_data[[7]],
+               summary_graph_data[[8]],
+               summary_graph_data[[9]],
+               summary_graph_data[[10]], 
+               summary_graph_data[[11]]) %>%
+  as.data.frame() %>%
+  filter(is.na(Species) == FALSE, 
+         is.na(HAB_1) == FALSE)
+
+
+changepoint_data = un_sum %>% unique() %>% 
+  arrange(Species, HAB_1, color) %>% 
+  group_by(HAB_1, Species) %>% 
+  summarise(sum_color = sum(color)) %>% 
+  filter(sum_color > 1) %>% 
+  mutate(type = "changepoint") 
+
+
+## This appears to be working this is the data that can go into the graph. I just need to now figure out how to create a - or + for the lag column for the graph and also to put in the direction for the continuous data 
+data = left_join(un_sum, changepoint_data) %>% 
+  mutate(type  = replace_na(type, "continuous"))%>% 
+  arrange(Species, HAB_1, color) %>%
+  ungroup() %>%
+  unique() %>% 
+  group_by(HAB_1, Species) %>%
+  mutate(lag = mean - lag(mean), 
+         lag_mean = mean - lag(mean)) %>%
+  mutate(lag_mean = sign(lag_mean)) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == 1, "+")) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == -1, "-"))
+  
+## Models for continuous data 
+cat = matrix(data = NA, ncol = 4, nrow = 11)
+dog = matrix(data = NA, ncol = 4, nrow = 11)
+for(i in 1:4){
+  
+  g = data %>% 
+    filter(HAB_1 == unique(data$HAB_1)[i])
+   
+  for(h in 1:11){
+    
+    Pred = "NA" 
+    M4 = "NA"
+    lm_data = v_mod %>% filter(Year > 2000, 
+                                          HAB_1 == unique(data$HAB_1)[i],
+                                          Species == unique(g$Species)[h]) %>% 
+      mutate(value = round(value), 
+             Year = as.numeric(Year))
+    
+     dat_graph.pred = lm_data %>%
+        filter(Year > 2000)   %>% 
+        mutate(Year = as.numeric(Year)) %>%
+        mutate(Year = scale(Year)[,1]) 
+      
+    try(M4 <- zeroinfl(value ~ (Year) | (Year),
+                         dist = 'negbin',
+                         data = dat_graph.pred))
+    
+    
+    
+    try(Pred<- predict(M4,newdata = dat_graph.pred, type = "response"))
+    
+    
+    
+    
+     
+    cat[h, i] = mean(Pred[1:5]) < mean(Pred[length(Pred) - 5:length(Pred)]) 
+    
+    
+    
+    dog[h, i] = try( summary(M4)$coef[[2]][2,4] < .05)
+    
+    
+  }
+}    
+
+ 
+rownames(cat) = unique(g$Species)
+colnames(cat) = unique(data$HAB_1)
+rownames(dog) = unique(g$Species)
+colnames(dog) = unique(data$HAB_1)
+  
+regression_data  = cat %>% as.data.frame() %>% 
+    rownames_to_column(var = "Species") %>%
+    pivot_longer(R:SW, names_to = "HAB_1") %>% 
+  mutate(value = replace(value, value == "TRUE","#00BFC4"),
+         value = replace(value, value == "FALSE", "#F8766D"))
+
+significance_data = dog %>% as.data.frame() %>%
+  rownames_to_column(var = "Species") %>%
+  pivot_longer(R:SW, names_to = "HAB_1") %>% 
+  mutate(value = replace(value, value == "FALSE", "insig"), 
+         value = replace(value, value == "TRUE", "sig")) %>%
+  rename(significance= value)
+
+
+l = list()
+
+for(i in 1:4){
+  
+  data_regression  = data %>% 
+    left_join(regression_data) %>% 
+    left_join(significance_data) %>%
+    filter(HAB_1 == unique(data$HAB_1)[i]) %>%
+    mutate(lag = log10(abs(lag))*20)
+  
+  cont = data_regression %>%
+    filter(type == "continuous", significance == "sig") %>%
+    unique()
+  
+  if(i == 4){
+    cont[3,1] = "SW"
+    cont[3,2] = "PS"
+    cont[3,3] = 1
+    cont[3,11] = "#00BFC4" 
+    cont[3,12] = "sig" 
+    cont[3, 6] = 165.5144
+  } else {cont = cont}
+  
+  #cont = cont %>% filter(Species %in% c("CC", "CS"))
+  
+  #data_regression = data_regression %>% filter(Species %in% c("CS", "CC"))
+  
+  hab_names = c("Rock", "Rock Wood", "Sediment", "Sediment Wood")
+  
+  l[[i]] = data_regression %>% ggplot() + 
+    geom_text(aes(x = as.numeric(min),
+                  y = Species, 
+                  col = as.factor(lag_mean),
+                  label = lag_mean,
+                  size = 4
+                  #size = round((lag/10))*10
+                  )) + 
+    theme(legend.position = "none") + 
+    xlab("Year") + 
+    ylab(paste(hab_names[i])) + 
+    geom_hline(yintercept = cont$Species, col = cont$value, lwd = log((cont$mean)+1)) + 
+    xlim(1999, 2020)
+    
+  
+  # Here I made the size of the line the mean for the post 2000 CPUE. Bigger line means more fish... 
+
+}
+
+do.call(gridExtra::grid.arrange, l)
+
+## PS are no longer zero inflated in the hab_1 SW - because there are some years where there are no sites with 0 fish caught - run a regular regression instead 
+
+PS_dat = v_mod %>% filter(Species == "PS", HAB_1 == "SW", Year > 2000) 
+
+
+mean(PS_dat$value)
+
+summary(lm(PS_dat$value ~ as.numeric(PS_dat$Year))) 
+
+# May want to reassess what the right model for this is - but basic LM suggests its significant 
+
+data %>% filter(type == "changepoint", min >0) %>% 
+  group_by(HAB_1, lag_mean, min) %>% 
+  summarize(sum = n()) %>%
+  rbind(data.frame(HAB_1 =c("R","R","R","R","R"), lag_mean = c("+","+","+","+","+"), min = c("2002", "2016", "2017", "2018", "2019"), sum = c(0,0,0,0,0))) %>%
+  ungroup() %>% 
+  complete(HAB_1, min, lag_mean) %>% 
+  mutate(sum = replace_na(sum, 0)) %>%
+  ggplot(aes(x = as.numeric(min), y = sum, col = HAB_1)) + 
+  geom_jitter(width = .1,height = .1) +
+  facet_wrap(~lag_mean) + 
+  xlab("Year") + 
+  ylab("Number of Changepoints") +
+  ylim(0,6) + 
+  geom_smooth(method = "lm", se = F)
+```
+
+
+##### Major take-aways ------------ 
+
+    * Responses are not homogeneous across habitats 
+    
+        * All initial responses are with S habitats - disporportionately contribute to post-removal success of natives
+        
+        
+        * RS show major response over R or S habitats. No large response over woody habitats. 
+          
+          * We see a response over S habitats earlier than R 
+          
+        * MM only shows positive responses over S or SW habitat 
+        
+        * RW habitat doesn't appear to benefit many natives
+        
+
+        
+        
+-------------------------------------------------------------------
+
+#### Size-based CP analysis ----------------- 
+
+
+```{r}
+
+# Colorblind pallete
+cbbPalette <- c("#000000",  "#56B4E9", "#D55E00","#009E73", "#F0E442", "#0072B2",  "#CC79A7","#E69F00")
+for(i in 1:length(species)){
+  list_habitats = list()
+  for(h in c("R","RW","S","SW")){
+    
+    year_complete = data.frame(YEAR = c(1998: 2019))
+  
+  dat_length = BEF_data %>% filter(SPECIES == species[i], HAB_1 == h) %>% 
+    filter(YEAR >= 2000) %>%
+    select(LENGTH, YEAR, SITE) %>% na.omit() %>% 
+    group_by(YEAR, SITE) %>%
+    summarize(median_L = mean(LENGTH,na.rm = T)) %>%
+    ungroup() %>%
+    pivot_wider(names_from = SITE, values_from = median_L) %>% 
+    full_join(year_complete) %>% 
+    arrange(YEAR)
+  
+  
+ 
+    output = e.divisive(x, R= 499,
+                      alpha = 1,
+                      min.size = 2, 
+                      sig.lvl  = .05)
+  
+    output_dat = data.frame(YEAR = unique(dat_length$YEAR), 
+                          cluster = output$cluster)
+  
+    dat = BEF_data %>%
+      filter(YEAR >= 2000) %>%
+      filter(SPECIES == species[i]) %>% 
+      filter(HAB_1 == h) %>%
+      left_join(output_dat)
+    
+    lm_obj = summary(lm(dat$LENGTH ~ dat$YEAR, 
+                        na.rm = T))
+  
+  
+  if((2 %in% output_dat$cluster) == TRUE){
+    
+    
+    mean_length = dat_ %>%
+      group_by(cluster) %>% 
+      summarize(mean = mean(LENGTH, na.rm = T))
+    
+    fred = left_join(dat, mean_length)
+    
+    
+    b = ggplot() +
+      geom_jitter(data = dat, aes(x = as.numeric(YEAR), y = LENGTH, col = as.character(cluster),
+                     alpha = .2, width = .2)) +
+      labs(col = paste(species[i])) + 
+      ylab("Length") +
+      ylab(paste(species_names[i], "Length (mm)")) + 
+      theme(text = element_text(size = 14)) + 
+      theme(legend.position="none",
+            axis.title.x = element_blank()) + 
+      xlim(1999, 2021) + 
+      scale_colour_manual(values=cbbPalette) + 
+      geom_vline(xintercept = 2000, linetype = "dashed")+
+    ylim(min((BEF_data %>% 
+                filter(SPECIES == species[i]))$LENGTH, na.rm = T), max((BEF_data %>% 
+                filter(SPECIES == species[i]))$LENGTH, na.rm = T))
+    
+    for(z in 1:length(unique(v_mod$color))){
+      
+      cluster_means = left_join(fred, mean_length)
+      
+      h = h +
+        geom_line(dat = (cluster_means %>% filter(cluster == z)),
+                         aes(x = YEAR, 
+                             y = mean, col = as.character(cluster)), 
+                  size = 1) 
+    }
+    
+  } else {
+    
+  b = dat %>%
+    filter(SPECIES == species[i]) %>%
+    ggplot(aes(x = YEAR, y = LENGTH)) +
+    geom_jitter(aes(col = 'red',
+                   alpha = .2), width = .2) +
+    labs(col = paste(species[i])) + 
+    ylab("Length") +
+    geom_smooth(method = "lm", color = 1, size = 1, se = F) + 
+    ylab(paste(species[i], "Length (mm)")) + 
+    theme(text = element_text(size = 14)) + 
+    theme(legend.position="none",
+          axis.title.x = element_blank(),
+          ) + 
+    xlim(1999, 2021) + 
+    scale_colour_manual(values=cbbPalette)+ 
+    geom_vline(xintercept = 2000, linetype = "dashed") +
+    ylim(min((BEF_data %>% 
+                filter(SPECIES == species[i]))$LENGTH, na.rm = T), max((BEF_data %>% 
+                filter(SPECIES == species[i]))$LENGTH, na.rm = T))
+  
+  
+  
+  }
+    
+    
+    
+  list_habitats[[h]] = b
+  
+  
+  
+    }
+  print(gridExtra::grid.arrange(grobs = list_habitats))
+}
+
+
+
+
+  
+  # Uniting the data with the habitat information in it
+  cpoint_dataframe = rbind(list_habitats[[1]],list_habitats[[2]], list_habitats[[3]],list_habitats[[4]])
+  
+  # Creating the changepoint graphs--------------
+  
+  graph = cpoint_dataframe %>% ggplot(aes(x = as.numeric(Year), 
+                            y = value)) + 
+    geom_point(aes(color = as.character(color))) +
+    facet_wrap(~HAB_1) + 
+    theme(axis.text.x = element_text(angle = 90),
+          legend.position = "none") + 
+    xlim(1998, 2021) +
+    ylab(paste(species[i],"CPUE")) +
+    xlab("Year")
+  print(graph)
+  print(h)
+
+  
+  
+  
+  
+  
+  
+  
+```
+
+
+```{r,echo - F, warning = F, message= FALSE }
+v %>% group_by(Species, HAB_1) %>% 
+  summarise(mean = mean(value)) %>%
+  filter(Species == "SMB")
+
+BEF_data %>% group_by(SPECIES, HAB_1) %>% 
+  summarise(mean = mean(LENGTH, na.rm = T))
+
+
+BEF_data %>% 
+  filter(SPECIES %in% c("CC", "CS", "MM", "PS", "WS", "SMB")) %>% ggplot(aes(x = HAB_1, y = LENGTH)) +
+  geom_boxplot() + 
+  facet_wrap(~SPECIES)
+
+
+BEF_data %>% group_by(SPECIES, HAB_1) %>% 
+  filter(SPECIES %in% c("CC", "CS", "MM", "PS", "WS")) %>%
+  summarise(mean = mean(LENGTH, na.rm = T)) %>% 
+  mutate(rank = rank(mean)) %>% filter(rank %in% c(1,4))
+
+
+shoreline_length %>% filter(Water == "LML") %>% 
+  group_by(Habitat) %>% summarise(total_shoreline = sum(Shape_Length))
+
+## Total LML shoreline length = 11541.35
+
+## R/RW shoreline length = 3919.897 = 34 %
+
+## S/SW shoreline length = 7621.45 = 66 %
+
+
+```
+##### Major findings ----------------
+
+Disclaimer - these are just means - there is likely something more rigorous I should do that takes into account change through time
+Example - fish that on average were less than x mm before removal typically responded immediately to the removal - this included increases in relative abundance over mostly sandy substrates. With delayed increases over ... 
+ 
+
+ 
+  * Individuals CC, CS are larger in RW and R sites 
+  
+      * These individuals are generally very low abundance... check this
+      
+      * CC - significantly smaller in S vs. RW (other trends non-significant)
+      
+      * CS - significantly smaller in S vs. RW (other trends non-significant)
+      
+          * CS are increasing in size in RW and SW habitats but YOY show up mostly in S habitats 
+      
+  * No significant differences across MM ~ habitat
+  
+      * Theoretically - MM have smaller individuals in S  and larger individuals in RW - but there is also no pre 2004 length
+      
+      * MM very VERY rarely use rocky habitat and the individuals that do are mostly 50 mm
+      
+      * YOY mostly in S habitats 
+      
+  * Individuals of PS are typically smallest over S (this looks mostly significant)
+      
+      * In general, smaller in S/SW than R/RW
+      
+      * Looks like most are decreasing in size through time 
+      
+      * YOY show up frequently in all habitats 
+      
+  * Individuals of WS - do not have large differences in length across habitat
+  
+      * In R and S, it shows increasing size through time - increased prevalence of adults - 
+        these two habitats are the ones that show changepoints
+        
+      * YOY show up in most habitats 
+      
+      
+  * The presence of YOY in all 4 habitats may be linked to species success? 
+  
+----------------------------------------------------------------------------------
+
+### Objective 1 major findings 
+
+1. There are no change points for length when data is broken apart by habitat 
+
+2. All three small-bodied species (CC, CS, MM) have higher densities in S/SW habitats. R/RW habitats contain larger individuals. In some cases, the site of those individuals is also increasing through time (CS)
+
+3. S + SW habitats make up 66% of the LML shoreline. Being successful within the R/RW parts of the shore may make you disproportionately more successful? 
+
+4. Initial response for many species occurred in the S or SW habs (where bass are much less abundant) - increasing abundance through time of SMB in R and RW sites may continue to prevent success of bass within those regions. 
+
+5. No apparent differences in the size of bass across each habitat - thus species are likely responding to the densities of bass (and other fish) within each site/habitat 
+    * Evidence for density related competition? 
+    
+6. Do we think this might help us understand management possibilities? Target specific habitat? 
+
+
+------------------------------------------------------------------------------------
+
+  
+## Objective 2
+
+#### Cleaning up the CP and regression data to investigate what traits might make species more successful in one habitat vs an other 
+
+##### Analysis - 
+  
+  * First idea: basic network or dendrogram analysis 
+  
+  
+## Objective 3 -------------------
+
+#### Determine the importance of particular sites as sources vs. sinks to the lake landscape 
+
+1. How isolated are specific habitats? Sites? Do less isolated sites/habitats have higher or lower relative abundances? 
+
+
+```{r}
+v_mod %>% mutate(ID = parse_number(ID)) %>%
+  filter(Species %in% c("CC", "CS", "WS","MM")) %>%
+  ggplot(aes(x = ID, y = value, color = HAB_1)) + geom_point() + facet_wrap(~Species)
+
+cat = BEF_data %>% 
+ 
+  mutate(LENGTH = .bincode(LENGTH, breaks = c(0,100,8000))) %>%
+  unite("SPECIES", c(SPECIES, LENGTH), remove = F) %>% 
+  filter(!is.na(LENGTH)) 
+
+
+#%>% left_join(neighbor)
+
+
+
+CPUE.w.sec = ((CPUE_wide_seconds(cat) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow)))
+
+CPUE.w.sec_averaged = CPUE_long_seconds(cat) %>% 
+  group_by(SITE, SPECIES) %>%
+  dplyr::summarize(MEAN_CPUE = mean(CPUE_seconds)  * 60 * 60 ) %>% 
+  pivot_wider(names_from = SPECIES, values_from = MEAN_CPUE) %>% 
+  column_to_rownames(.,var = "SITE")
+
+
+NMDS.cpue_year=metaMDS(CPUE.w.sec, 
+                     k=2, try = 100) 
+
+
+
+NMDS.cpue_site_averaged = metaMDS(CPUE.w.sec_averaged, k = 2, try = 100)
+
+NMDS.cpue_year$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2,
+             label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("Species - sites")
+
+
+NMDS.cpue_site_averaged$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2,
+             label = rownames(NMDS.cpue_year$species))) + 
+  geom_text(size =4)+ 
+  ggtitle("Species - averaged across sites")
+```
+## Correlation in space --------------------------------------
+
+Are sites that have 1 or more sandy sites near them more or less likely to have higher relative abundances of certain species 
+
+```{r}
+site_hab %>% mutate(NB_1 = lag(HAB_1))
+
+
+
+neighbor =read.csv("Data/BEFsites_LengthAndHabitat.csv") %>%
+  filter(Water == "LML") %>%
+  select(SITE, Habitat, Actual_Order, HAB_SITE) %>%
+  mutate(SITE = as.numeric(SITE)) 
+
+
+### Hab Sites
+neighbor_modified  = neighbor %>% select(Habitat, HAB_SITE)  %>% 
+  arrange(HAB_SITE) %>% unique() %>% 
+  mutate(neighbor_1 = lag(Habitat)) %>%
+  mutate(neighbor_2 = lead(Habitat))
+  
+neighbor_modified$neighbor_1[1] = neighbor$Habitat[23]
+neighbor_modified$neighbor_2[23] = neighbor$Habitat[1]
+  
+## Actual sites
+
+neighbor_modified = neighbor %>% 
+  arrange(Actual_Order) %>%
+  mutate(neighbor_1 = lag(Habitat)) %>%
+  mutate(neighbor_2 = lead(Habitat)) 
+
+
+
+neighbor %>% select(HAB_SITE, Habitat, neighbor_1, neighbor_2)
+
+
+
+neighbor_modified$neighbor_1[1] = neighbor$Habitat[32]
+neighbor_modified$neighbor_2[32] = neighbor$Habitat[1]
+
+
+# Proximity to Sand
+neighbor_modified = neighbor_modified %>% mutate(neighbor_1 = replace(neighbor_1, neighbor_1 =="S", 1), 
+         neighbor_1 = replace(neighbor_1, neighbor_1 =="SW", 2),
+         neighbor_1 = replace(neighbor_1, neighbor_1 =="R", 0),  
+         neighbor_1 = replace(neighbor_1, neighbor_1 =="RW", 0),
+         neighbor_2 = replace(neighbor_2, neighbor_2 =="S", 1), 
+         neighbor_2= replace(neighbor_2, neighbor_2 =="SW", 2),
+         neighbor_2 = replace(neighbor_2, neighbor_2 =="R", 0),  
+         neighbor_2 = replace(neighbor_2, neighbor_2 =="RW", 0)) %>%
+  mutate(sum = as.numeric(neighbor_1) + as.numeric(neighbor_2))
+
+
+
+c = CPUE_long_seconds(cat) %>% 
+  separate(SPECIES, into = "SPECIES", "SIZE") %>%
+  mutate(CPUE_seconds = CPUE_seconds  * 60 * 60 )%>%
+  group_by(SPECIES, SITE,YEAR) %>%
+  dplyr::summarize(mean = mean(CPUE_seconds)) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  left_join(neighbor) %>% 
+  left_join(neighbor_modified)
+```
+  
+```{r}
+c %>% 
+  unite( "ID", c(SPECIES, SITE)) %>%
+  column_to_rownames(.,var = "ID") %>%
+  ungroup() %>%
+  select(mean, sum) %>%
+  cor() -> res
+```
+
+```{r}
+c %>% filter(SPECIES == "PS_2") %>%
+  ungroup() %>%
+  select(mean, sum) %>%
+  cor() -> res
+```
+
+```{r}
+mat = matrix(NA, nrow = length(unique(c$SPECIES)), ncol = 2)
+
+c = c %>% separate(SPECIES, into=c("species_code", "size_class"), remove = F)
+
+for(i in 1:length(unique(c$SPECIES))){
+  
+  cor_dat = c %>% filter(SPECIES == unique(c$SPECIES)[i]) %>%
+    #filter(Habitat %in% c("R", "SW","S")) %>%
+  ungroup() %>%
+  select(mean, sum)
+  res = rcorr(as.matrix(cor_dat), type = "spearman")
+  mat[i,1] = res$r[2]
+  mat[i,2] = res$P[2]
+  
+}
+rownames(mat) = unique(c$SPECIES)
+colnames(mat) = c("cor", "p.value")
+mat %>% as.data.frame() %>% filter(p.value < .05)
+
+```
+##### Main Findings - 
+
+Small creek chub, common shiner, and mudminnow, and brook trout do better at sites that are near one or more sandy sites. Adult common shiners also have larger relative abundances at these sites. 
+
+
+
+## Question - 
+
+Do these species specifically do better at rocky sites that are closer to sandy sites? 
+
+
+```{r}
+
+mat = matrix(NA, nrow = length(unique(c$SPECIES)), ncol = 2)
+
+
+for(i in 1:length(unique(c$SPECIES))){
+  
+  cor_dat = c %>% filter(Habitat %in% c("R", "RW")) %>%
+  filter(SPECIES == unique(c$SPECIES)[i]) %>%
+  ungroup() %>%
+  select(mean, sum)
+  res = rcorr(as.matrix(cor_dat), type = "spearman")
+  mat[i,1] = res$r[2]
+  mat[i,2] = res$P[2]
+  
+}
+rownames(mat) = unique(c$SPECIES)
+colnames(mat) = c("cor", "p.value")
+mat %>% as.data.frame() %>% filter(p.value < .05)
+
+
+
+```
+
+
+##### Question - do correlation patterns remain when species as a whole are examined? AKA
+Do species closer to sandy patches have higher relative abundances? 
+
+Main findings:
+Not in rocky patches. 
+
+Yes: CC, CS, and MM all have higher relative abundances in patches that are surrounded by sandy patches 
+
+```{r}
+c = c %>% separate(SPECIES, into=c("species_code", "size_class"), remove = F)
+
+mat = matrix(NA, nrow = length(unique(c$species_code)), ncol = 2)
+
+for(i in 1:length(unique(c$species_code))){
+  
+  cor_dat = c %>% 
+  filter(species_code == unique(c$species_code)[i]) %>%
+  ungroup() %>%
+  select(mean, sum)
+  res = rcorr(as.matrix(cor_dat), type = "spearman")
+  mat[i,1] = res$r[2]
+  mat[i,2] = res$P[2]
+  
+}
+rownames(mat) = unique(c$species_code)
+colnames(mat) = c("cor", "p.value")
+mat %>% as.data.frame() %>% filter(p.value < .05)
+```
+
+## Box plot of relative cpue of fish at rocky sites near sand and rocky sites not near sand 
+
+Main finding: CC, CS, MM all benefit from being near other sandy sites. But they do not necessarily benefit from this within rocky sites. Thus, sandy sites may buffer and help protect smaller fish, but may not necessarily lead to higher abundances within rocky sites. 
+
+```{r}
+c %>%filter(species_code %in% c("CC", "CS", "MM")) %>%
+  #filter(Habitat %in% c("R","RW")) %>%
+  ggplot(aes(y = mean, x = as.character(sum))) + 
+  geom_boxplot() +
+  facet_wrap(~species_code)
+
+c %>%filter(species_code %in% c("CC", "CS", "MM")) %>%
+  filter(Habitat %in% c("R","RW")) %>%
+  ggplot(aes(y = mean, x = as.character(sum))) + 
+  geom_boxplot() +
+  facet_wrap(~species_code)
+
+
+c %>%filter(SPECIES %in% c("CC_1", "CS_1", "CC_2", "CS_2")) %>%
+  filter(Habitat %nin% c("R","RW")) %>%
+  ggplot(aes(y = mean, x = as.character(sum))) + 
+  geom_boxplot() +
+  facet_wrap(~SPECIES)
+
+c %>%filter(SPECIES %in% c("CC_1", "CS_1", "CC_2", "CS_2")) %>%
+  filter(Habitat %in% c("R","RW")) %>%
+  ggplot(aes(y = mean, x = as.character(sum))) + 
+  geom_boxplot() +
+  ggtitle("RW + R Sites") +
+  facet_wrap(~SPECIES)
+
+
+CC_1.0 = c %>% filter(SPECIES == "CC_1") %>% filter(Habitat %in% c("R", "RW"), 
+                                                    sum == 0)
+CC_1.2 = c %>% filter(SPECIES == "CC_1") %>% filter(Habitat %in% c("R", "RW"), 
+                                                    sum == 2)
+
+t.test(as.numeric(CC_1.0$mean), as.numeric(CC_1.2$mean))
+
+```
+```{r}
+species_richness = v_mod %>% filter(value > 0) %>% 
+  separate(ID, into = c("site", "habitat", "sp")) %>%
+  select(site, Species) %>%
+  unique()
+
+
+
+v_mod %>% filter(value > 0) %>% 
+  separate(ID, into = c("site", "habitat", "sp")) %>%
+  select(site, Species, value) %>% 
+  ggplot(aes(x = site, y = value, color = Species)) + 
+  geom_point()
+
+
+
+v_mod %>% filter(value > 0) %>% 
+  filter(Year == "2019") %>%
+  separate(ID, into = c("site", "habitat", "sp")) %>% 
+  ggplot(aes(x = site, y = value , fill = Species)) + 
+  geom_col() + 
+  theme_minimal() +
+  ylab("CPUE") +
+  #geom_col(position = "fill") + 
+  theme(axis.text.x = element_text(angle = 90))
+
+
+
+
+species_richness %>% ggplot(aes(x = site, fill = Species)) + 
+  geom_bar()
+
+
+```
+
+
+## Are relative abundances of CC or CS and smallmouth bass related 
+
+Main finding: yes they are. 
+
+  - YOY CC, CS, and MM are negatively correlated with YOY SMB. 
+  
+  - Adult CC, MM, and CS are not negatively correlated with adult SMB
+  
+  
+
+```{r}
+species_mean_cpue = c %>% 
+  filter(species_code %in% c("CC", "CS", "MM","WS", "PS","SMB", "ST")) %>%
+  select(SPECIES, SITE, YEAR, mean) %>% 
+  mutate(mean = as.numeric(mean)) %>%
+  pivot_wider( names_from = SPECIES, values_from = mean) %>% 
+  ungroup() %>%
+  filter(YEAR > 2000) %>%
+  select(-SITE, -YEAR)
+  
+
+res = rcorr(as.matrix(species_mean_cpue), type = "pearson")
+corrplot(res$r, diag = F, type = "upper",p.mat = res$P, insig = "blank", sig.level = .05)
+
+```
+## Can some of that be explained by habitat preferences? 
+
+# These don't work with the sites collapsed by habitat
+
+
+```{r}
+for(i in c("R", "S","SW")){
+  species_mean_cpue = c %>% 
+    filter(species_code %in% c("CC", "CS", "MM","WS", "PS","ST","SMB"), 
+           Habitat == i) %>%
+    select(SPECIES, SITE,YEAR, mean) %>% 
+    pivot_wider( names_from = SPECIES, values_from = mean) %>% 
+    ungroup() %>% 
+    filter(YEAR > 2000) %>%
+    select(-SITE, -YEAR)
+  res = rcorr(as.matrix(species_mean_cpue), type = "pearson")
+  corrplot(res$r, diag = F, type = "upper",p.mat = res$P, insig = "blank", sig.level = .05)
+  title(paste(i))
+}
+```
+
+```{r}
+CPUE.w.sec %>%  ggplot(aes(x = SMB_1, y = CS_1)) + geom_point() +
+  geom_smooth(method = "lm")
+
+c %>% filter(species_code %in% c("CS", "CC")) %>% pivot_wider(names_from = species_code, values_from = mean)
+             
+SMB = c %>% filter(species_code == "SMB") %>% ungroup() %>% select(-species_code, -SPECIES) %>% rename(smb_cpue = mean)
+CC = c %>% filter(species_code == "CS")
+CC %>% left_join(SMB) %>% arrange(smb_cpue)
+
+CC_dat = CC %>% left_join(SMB) %>% mutate(Habitat = as.numeric(as.factor(Habitat)))
+
+CC_dat%>% 
+  ggplot(aes(y = mean, x = smb_cpue)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+
+summary(lm(CC_dat$mean~ CC_dat$Habitat))
+summary(glm(CC_dat$mean~ CC_dat$Habitat + CC_dat$smb_cpue)) 
+
+summary(lm(CC_dat$mean ~ CC_dat$smb_cpue))
+
+
+CC_dat
+
+```
+
+Which species appear to have a cpue related to habitat? 
+
+```{r}
+c%>%
+  ggplot(aes(x = Habitat, y = mean)) + geom_boxplot() + 
+  facet_wrap(~species_code)
+
+
+WS = c %>% filter(species_code == "RS") 
+
+z = (kruskal.test(WS$mean ~ WS$Habitat))
+z$p.value
+
+
+wilcox.test((WS %>% filter(Habitat == "RW"))$mean,(WS %>% filter(Habitat == "SW"))$mean)
+
+
+for(i in unique(c$species_code)){
+  
+  dat = c %>% filter(species_code == i)
+  
+  z = kruskal.test(dat$mean ~ dat$Habitat)
+  
+  if(z$p.value < .05){print(i)}
+  
+}
+
+for(i in unique(c$SPECIES)){
+  
+  dat = c %>% filter(SPECIES == i)
+  
+  z = kruskal.test(dat$mean ~ dat$Habitat)
+  
+  if(z$p.value < .05){print(i)}
+  
+}
+
+```
+```{r}
+
+c_year = CPUE_long_seconds(cat) %>% 
+  separate(SPECIES, into = "SPECIES", "SIZE") %>%
+  mutate(CPUE_seconds = CPUE_seconds  * 60 * 60 )%>%
+  group_by(YEAR, SPECIES) %>%
+  dplyr::summarize(mean = mean(CPUE_seconds)) %>%
+  #mutate(SITE = as.numeric(SITE)) %>%
+  separate(SPECIES, into = c("SPECIES", "SIZE_CLASS"))
+
+
+
+
+
+
+c_year %>% 
+  mutate(SIZE_CLASS = as.numeric(SIZE_CLASS)) %>%
+  mutate(SIZE_CLASS = replace(SIZE_CLASS, SIZE_CLASS == 1, "=<100 mm")) %>% 
+  mutate(SIZE_CLASS = replace(SIZE_CLASS, SIZE_CLASS == 2, ">100 mm")) %>% 
+  
+  ggplot(aes(x = YEAR, y = mean, fill = SPECIES)) + geom_col(position = "fill") + 
+  facet_wrap(~SIZE_CLASS, 
+             dir ="v")+
+  ylab("CPUE ind/hour")
+
+
+
+c_site = CPUE_long_seconds(cat)  %>% 
+  separate(SPECIES, into = "SPECIES", "SIZE") %>%
+  mutate(CPUE_seconds = CPUE_seconds  * 60 * 60 )%>%
+  group_by(SPECIES, SITE) %>% 
+  dplyr::summarize(mean = mean(CPUE_seconds)) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  separate(SPECIES, into = c("SPECIES", "SIZE_CLASS"))
+
+
+c_site %>% ggplot(aes(x = SITE, y = mean, fill = SPECIES)) + geom_col() + ylab("CPUE ind/hour")
+
+### Go look at the north east shore of 1st Bisby - difference in spatial distribution 
+
+
+## where were the bass in the first place did we change the spots that used to have a lot of bass and now with the bass removal? or are the only community changes in the spots where there were very few bass to begin with 
+```
+
+
+
+# Thoughts 
+
+## Adirondack-wide patterns are observed localy within lakes as well? 
+CC - ST - WS all seem to do well together in LML 
+This is a common assemblage throughout the adirondacks

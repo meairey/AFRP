@@ -1,0 +1,984 @@
+---
+title: "Untitled"
+author: "Montana"
+date: "2023-02-20"
+output: html_document
+---
+This contains the LML CHP stats that are split up by size
+
+
+## !!!Run this to make sure that you have the right directory!!!
+```{r setup}
+knitr::opts_knit$set(root.dir = "C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+```
+
+## Data Setup --------------------------
+```{r, echo = F, warning = F, message = F}
+# Setup
+library(corrplot)
+library(Hmisc)
+library(MASS)
+require(pscl) # alternatively can use package ZIM for zero-inflated 
+library(lmtest)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(vegan)
+library(RColorBrewer)
+library(ggridges)
+library(ecp)
+library(dplyr)
+library(knitr)
+library(wesanderson)
+pal <- wes_palette("Cavalcanti1", 5, "discrete")
+## Functions source -----------
+source("AFRP_Master_Code/AFRP_Functions.R")
+#sample = read.csv("MA2276_Code/Data/FISH_SAMPLE_edited.csv")
+
+
+# Boat Electrofishing Data
+BEF_data_unfiltered = filter_data(water = "LML", gear = "BEF",
+                                  gear_code = "NAF", 
+                                  species = species) %>% 
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998)
+
+
+BEF_data_unfiltered = left_join(fish, sample, by = "YSAMP_N") %>%
+  filter(WATER == "LML", 
+         GEAR == "BEF",
+         GEAR_CODE == "NAF") %>%
+  separate(SITE_N, into = c("year", "water", "SITE"), remove = F) %>%
+  select(-year, -water) %>% 
+  filter(MONTH %in% c(5,6,7))
+
+
+
+# Removing species ---------------
+`%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
+rare_threashold = 50 ## change this based on preference
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
+  summarise(frequency = n()) %>% 
+  filter(frequency < rare_threashold)
+stocked = c("LLS", "RT") ## Stocked fish in little moose
+remove = c(stocked, rare$SPECIES) ## Remove SMB + RWF (targeted 2000s)
+# I'm also going to remove LT and RS because I want to focus mostly on native littoral fishes 
+
+
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
+
+## Creating a data frame that defines neighboring habitat sites 
+neighbor =read.csv("Data/BEFsites_LengthAndHabitat.csv") %>%
+  filter(Water == "LML") %>%
+  select(SITE, Habitat, Actual_Order, HAB_SITE) %>%
+  mutate(SITE = as.numeric(SITE))
+
+
+# Modifying to combine sites of the same habitat type that are next to each other
+### !!!!!! This is what is modified from the original !!!!!!
+#BEF_data = BEF_data %>% mutate(SITE = as.numeric(SITE)) %>%  left_join(neighbor) %>% 
+  #rename(SITE_actual = SITE) %>% 
+  #rename(SITE = HAB_SITE)
+
+# ------------------------------
+
+
+BEF_data = BEF_data %>% 
+ 
+  mutate(LENGTH = .bincode(LENGTH, breaks = c(0,100,8000))) %>%
+  unite("SPECIES", c(SPECIES, LENGTH), remove = F) %>% 
+  filter(!is.na(LENGTH)) %>%
+  mutate(EFFORT = as.numeric(EFFORT))
+
+
+
+
+site_hab = BEF_data %>% select(SITE, HAB_1) %>%
+  rename(Site = SITE) %>%
+  unique() %>% arrange(Site)
+
+
+
+CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow))) %>%
+  mutate(RWF_1 = 0) %>% 
+  mutate(MM_2 = 0) %>% select(BB_1, BB_2, CC_1, CC_2, CS_1, CS_2, LT_1, LT_2, MM_1, MM_2, PS_1, PS_2, RS_1, RS_2,RWF_1, RWF_2, SMB_1, SMB_2, SS_1, SS_2, ST_1, ST_2,WS_1, WS_2 )
+
+## -------------------------- First bisby -------------------------
+
+# Removing species ---------------
+
+
+BEF_data_unfiltered = left_join(fish, sample, by = "YSAMP_N") %>%
+  filter(WATER == "FBL", 
+         GEAR == "BEF",
+         GEAR_CODE == "NAF") %>%
+  separate(SITE_N, into = c("year", "water", "SITE"), remove = F) %>%
+  select(-year, -water) %>% 
+  filter(MONTH %in% c(5,6,7))
+
+rare_threashold = 50
+
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
+  summarise(frequency = n()) %>% 
+  filter(frequency < rare_threashold)
+stocked = c("LLS", "RT") ## Stocked fish in little moose
+remove = c(stocked, rare$SPECIES, "RS", "CS") ## Remove SMB + RWF (targeted 2000s)
+# I'm also going to remove LT and RS because I want to focus mostly on native littoral fishes 
+
+habs =read.csv("Data/BEFsites_LengthAndHabitat.csv") %>% 
+  filter(Water == "FBL")%>%
+  select(Water, SITE_N, Habitat) %>%
+  na.omit() %>%
+  filter(Habitat != "N") %>%
+  rename("WATER" = Water)
+
+
+
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove) %>% 
+ 
+  mutate(LENGTH = .bincode(LENGTH, breaks = c(0,100,8000))) %>%
+  unite("SPECIES", c(SPECIES, LENGTH), remove = F) %>% 
+  filter(!is.na(LENGTH)) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  left_join(habs) %>%
+  rename(HAB_1 = Habitat) %>% 
+  mutate(WATER == "FBL") %>%
+  mutate(EFFORT = as.numeric(EFFORT))
+
+
+BEF_data_unfiltered %>% filter(SPECIES %nin% remove) %>% 
+ 
+  mutate(LENGTH = .bincode(LENGTH, breaks = c(0,100,8000))) %>%
+  unite("SPECIES", c(SPECIES, LENGTH), remove = F) %>% 
+  filter(!is.na(LENGTH)) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  filter(YEAR == 2004)
+
+site_hab = BEF_data %>% select(SITE, HAB_1) %>%
+  rename(Site = SITE) %>%
+  unique() %>% arrange(Site) %>% na.omit()
+
+
+CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow))) 
+
+cpue.habs = CPUE.w.sec %>% 
+  mutate(names = rownames(.)) %>% 
+  separate(names, into = c("year", "Site")) %>%
+  mutate(Site = as.numeric(Site)) %>% 
+  left_join(site_hab) %>%
+  select(Site, HAB_1) 
+
+
+c.h = unique(cpue.habs)
+
+species = colnames(CPUE.w.sec) 
+
+species_names = c("Creek Chub","Lake Trout","Central Mudminnow", "Smallmouth Bass",  "Brook Trout", "White Sucker")
+
+length_graph = rep(c("< 100 mm", "> 100 mm"), length(species_names))
+
+
+
+fish %>% 
+  left_join(sample, by = "YSAMP_N") %>%
+  filter(YEAR == 2003) %>% 
+  filter(WATER == "FBL") %>%
+  filter(GEAR_CODE == "NAF") 
+
+fish %>% 
+  left_join(sample) %>%
+  filter(YEAR == "2003") %>%
+  group_by(WATER, GEAR_CODE) %>%
+  summarize(n = n())
+
+fish %>% filter(YSAMP_N == "BEF.FBL.2003.011") 
+sample %>% filter(YSAMP_N == "BEF.FBL.2003.011") %>% select(YEAR, GEAR_CODE)
+
+
+fish %>% separate(YSAMP_N, into = c("GEAR", "WATER","YEAR", "samp")) %>%
+  filter(WATER == "FBL", YEAR == "2003", GEAR == "BEF")
+
+
+sample %>% filter(WATER == "FBL", GEAR == "BEF", YEAR == 2003) %>%  unique() %>%
+  group_by(YSAMP_N) %>% summarize(t = n())
+%>%
+  select(SITE_N, everything())
+
+
+```
+
+
+#### Correlations between species abundances at each site - split by habitat. 
+
+We see that most often, creek chub have negative associations with juvenile smallmouth bass. 
+
+```{r}
+
+
+cor_cpue = CPUE.w.sec
+
+
+graph_names = data_frame(species = rep(species_names, each = 2), length = length_graph[1:12]) %>% unite(ID, species, length, sep = " ")
+
+
+colnames(cor_cpue)= graph_names$ID
+
+## May consider adding in rainbow smelt or slimy sculpin into this matrix
+#cor_cpue = cor_cpue %>% select(`Smallmouth Bass < 100 mm`, `Smallmouth Bass > 100 mm`, `Creek Chub < 100 mm`, `Brown Bulllhead > 100 mm`, `Central Mudminnow < 100 mm`, `Pumpkinseed < 100 mm`, `Pumpkinseed > 100 mm`,`White Sucker > 100 mm`, `Slimy Sculpin < 100 mm`, `Slimy Sculpin > 100 mm`)  
+
+
+for(i in c(1:3)){
+  
+  res = cor_cpue %>% rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>% 
+  filter(HAB_1 == c("SW","S","RW")[i]) %>%
+  select(-HAB_1) %>%
+  group_by(Year, Site) %>%   summarise_all(list(sum)) %>% 
+  ungroup() %>% 
+  select(-Year, - Site) %>% 
+  as.matrix() %>%
+  rcorr(.) 
+  
+  g = corrplot(res$r, type = "upper",method = "square",
+         tl.col = "black", tl.srt = 45,p.mat = res$P,sig.level = 0.05, insig = "blank", diag = F, tl.cex = .5, order = "alphabet")
+
+  print(g)
+  }
+
+
+
+
+```
+
+
+
+
+#### These are the changepoint analyses of all habitats and species 
+
+```{r, echo = F, warning=F, message= F, results = F}
+## Habitat changepoints ------------------
+vec = vector()
+p.val = vector()
+species = colnames(CPUE.w.sec)
+change_points_list = list()
+v = CPUE.w.sec %>% 
+  mutate(y_s = rownames(CPUE.w.sec)) %>%
+  mutate(HAB_1 = cpue.habs$HAB_1) %>%
+  pivot_longer(1:length(species),
+               names_to = "Species") %>%
+  separate(y_s, 
+           into = c("Year", "site")) %>%
+  unite("ID", 
+        c(site:Species), 
+        sep = "_", 
+        remove = F) %>%
+  select(-site)%>%
+  mutate(value = value * 60 * 60 ) %>%
+  filter(Year != 2002) %>%
+  filter(Year > 2000)
+summary_graph_data = list() 
+
+
+
+color_fixed = data.frame(hex = c("#707173","#56B4E9", "#D55E00","#009E73"), color = c(1:4))
+
+## Fixed change point using multiple sites a year as multivariate --------- 
+for(i in 1:length(CPUE.w.sec)){
+  list_habitats = list()
+    for(h in c("RW","S","SW")){
+      # Set up data frame
+      x = v %>%
+        filter(Year > 1999) %>%
+        filter(Species == species[i], HAB_1 == h) %>%
+        mutate(value = as.numeric(value)) %>% 
+        select(-Species, -HAB_1) %>%
+        mutate(value = log10(value+1)) %>%
+        pivot_wider(values_from = value,
+                    names_from = ID) %>%
+        replace(is.na(.), 0) %>%
+        select(-Year) %>%
+        as.matrix()
+      rownames(x) = unique(v$Year)
+      
+    # Run changepoint analysis ---------------
+    output = e.divisive(x, 
+                        R = 499, 
+                        alpha = 1, 
+                        min.size = 2,
+                        sig.lvl = .05)
+    
+    # Format data -------------------------
+    dat = data.frame(Year = unique(v$Year), 
+                     color = output$cluster)
+    v_mod = left_join(v,dat)
+  # Plots
+  
+  # Filtering out the data for this species habitat combo
+  hab_species_data = v_mod %>%
+    filter(Species == species[i], HAB_1 == h)
+  # Create a list to put the above data into
+  list_habitats[[h]] = hab_species_data
+  }
+  
+  # Uniting the data with the habitat information in it
+  cpoint_dataframe = rbind(list_habitats[[1]],list_habitats[[2]], list_habitats[[3]]) ## FBL
+  #cpoint_dataframe = rbind(list_habitats[[1]],list_habitats[[2]], list_habitats[[3]],list_habitats[[4]]) ## LML
+  
+  # Creating the changepoint graphs--------------
+  species_graph = rep(species_names, each = 2)
+  length_graph = rep(c("< 100 mm", "> 100 mm"), 12)
+  graph_dat = cpoint_dataframe %>% left_join(color_fixed)
+  graph = graph_dat %>% 
+    mutate(HAB_1 = replace(HAB_1, HAB_1 == "R", "Rock")) %>%
+    mutate(HAB_1 = replace(HAB_1, HAB_1 == "RW", "Wood + Rock")) %>%
+    mutate(HAB_1 = replace(HAB_1, HAB_1 == "S", "Fine Sediment")) %>%
+    mutate(HAB_1 = replace(HAB_1, HAB_1 == "SW", "Wood + Fine Sediment")) %>%
+    ggplot(aes(x = as.numeric(Year), 
+                            y = value,color = graph_dat$hex)) +
+    theme_minimal() + 
+    geom_point(color = graph_dat$hex) +
+    facet_wrap(~HAB_1) + 
+    theme(axis.text.x = element_text(angle = 90),
+          legend.position = "none") + 
+    xlim(1998, 2021) +
+    ylab(paste("CPUE (indv / hour)")) +
+    xlab(paste(species_graph[i], " (",length_graph[i],") ")) +
+    theme(text = element_text(size = 14)) 
+      
+  print(graph)
+  
+  # Pulling together data for summary graphs
+  summary_data = cpoint_dataframe %>% 
+    group_by(Year, HAB_1, Species, color) %>%
+    summarize(median = median(value), mean = mean(value))
+  
+  cp_summary_list = list()
+  blank_data = data.frame(HAB_1 = NA,
+                                    Species = NA,
+                                    color = NA, 
+                                    min = NA)
+  cp_summary_list[[1]] = blank_data
+  cp_summary_list[[2]] = blank_data
+  cp_summary_list[[3]] = blank_data
+  cp_summary_list[[4]] = blank_data
+  
+  # Filling out the information in the summary list 
+  
+  if((2 %in% summary_data$color) == TRUE){
+    for(z in 1:(max(summary_data$color)-1)){
+    ## Creates a point for every changepoint that occurs
+    cp_summary_list[[z]] = summary_data %>% filter(color > z) %>% 
+      ungroup() %>% group_by(HAB_1, Species, color) %>% 
+      summarize(min = min(Year))
+    
+    }
+    # Fill out any continuous data with NAs and the species info
+  }else(cp_summary_list[[i]] = data.frame(HAB_1 = NA, Species = species[i], color = 1, min = NA))
+ 
+  # Unlist the summary data to make into a dataframe 
+  unlisted_summary = rbind(cp_summary_list[[1]],cp_summary_list[[2]], cp_summary_list[[3]],cp_summary_list[[4]])
+  
+  # Calculate the median CPUE for each changepoint section (or the whole thing)
+  median_data = summary_data %>% ungroup() %>% group_by(HAB_1, Species, color) %>% 
+    summarize(median = median(median), 
+              mean = mean(mean))
+  
+  # Add in the regressions 
+  unlisted_summary = full_join(unlisted_summary, median_data)
+  summary_graph_data[[i]] = unlisted_summary
+ 
+}
+
+
+
+
+## change colors 
+
+```
+
+
+```{r, echo = F, warning=F, message= F, error=F, results='hide'}
+un_sum = unlisted_summary
+un_sum = rbind(summary_graph_data[[1]],
+               summary_graph_data[[2]],
+               summary_graph_data[[3]],
+               summary_graph_data[[4]],
+               summary_graph_data[[5]],
+               summary_graph_data[[6]],
+               summary_graph_data[[7]],
+               summary_graph_data[[8]],
+               summary_graph_data[[9]],
+               summary_graph_data[[10]], 
+               summary_graph_data[[11]],
+               summary_graph_data[[12]]#,
+              # summary_graph_data[[13]],
+               #summary_graph_data[[14]],
+               #summary_graph_data[[15]],
+               #summary_graph_data[[16]],
+               #summary_graph_data[[17]],
+               #summary_graph_data[[18]],
+               #summary_graph_data[[19]],
+               #summary_graph_data[[20]],
+               #summary_graph_data[[21]],
+               #summary_graph_data[[22]],
+               #summary_graph_data[[23]],
+               #summary_graph_data[[24]]
+              ) %>%
+  as.data.frame() %>%
+  filter(is.na(Species) == FALSE, 
+         is.na(HAB_1) == FALSE)
+
+
+changepoint_data = un_sum %>% unique() %>% 
+  arrange(Species, HAB_1, color) %>% 
+  group_by(HAB_1, Species) %>% 
+  summarise(sum_color = sum(color)) %>% 
+  filter(sum_color > 1) %>% 
+  mutate(type = "changepoint") 
+
+
+## This appears to be working this is the data that can go into the graph. I just need to now figure out how to create a - or + for the lag column for the graph and also to put in the direction for the continuous data 
+data = left_join(un_sum, changepoint_data) %>% 
+  mutate(type  = replace_na(type, "continuous"))%>% 
+  arrange(Species, HAB_1, color) %>%
+  ungroup() %>%
+  unique() %>% 
+  group_by(HAB_1, Species) %>%
+  mutate(lag = mean - lag(mean), 
+         lag_mean = mean - lag(mean)) %>%
+  mutate(lag_mean = sign(lag_mean)) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == 1, "+")) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == -1, "-"))
+  
+# May want to reassess what the right model for this is - but basic LM suggests its significant 
+
+cp_summary_data = data %>% filter(type == "changepoint", min >0) %>% 
+  separate(Species, into = c("code", "age")) %>%
+  group_by(HAB_1, lag_mean, min, age) %>% 
+  summarize(sum = n()) %>%
+  rbind(data.frame(HAB_1 =rep("R", 20), 
+                   lag_mean = rep("+", 20),
+                   min = as.character(c(2001:2020)),
+                   age = rep("1",20), 
+                   sum = rep(0,20))) %>%
+  ungroup() %>% 
+  complete(HAB_1, min,age, lag_mean) %>% 
+  mutate(sum = replace_na(sum, 0)) 
+  
+
+lm_dat = cp_summary_data %>% filter(age == "1" & lag_mean == "+"& HAB_1 == "RW") 
+
+summary(lm(as.numeric(sum) ~ as.numeric(min), data = lm_dat))
+
+
+## Age lables 
+age.labs <- c("< 100 mm", "> 100 mm")
+names(age.labs) <- c("0.5", "1")
+
+# New facet label names for supp variable
+lag.labs <- c("Orange Juice", "Vitamin C")
+names(lag.labs) <- c("OJ", "VC")
+
+cp_summary_data %>% 
+  mutate(lag_mean = replace(lag_mean, lag_mean == "+", "Positive Response")) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == "-", "Negative Response")) %>% 
+  mutate(age = replace(age, age == "1", "=< 100 mm")) %>% 
+  mutate(age = replace(age, age == "2", "> 100 mm"))  %>% 
+  ggplot(aes(x = as.numeric(min), y = sum, col = HAB_1)) + 
+  geom_jitter(width = .1,height = .3) +
+  theme_minimal()  + 
+  xlab("Year") + 
+  ylab("Changepoint Frequency") +
+  ylim(0,3.5) + 
+  #geom_smooth(method = "lm", se = F) + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  labs(col = "Habitat") + 
+  scale_color_discrete(labels = c("Rock", "Wood + Rock","Fine Sediment","Wood + Fine Sediment")) + 
+  xlim(2000, 2019)+ 
+  facet_grid(lag_mean~age)
+
+
+
+## Trying to split by hab
+
+
+cp_summary_data %>% 
+  mutate(lag_mean = replace(lag_mean, lag_mean == "+", "Positive Response")) %>%
+  mutate(lag_mean = replace(lag_mean, lag_mean == "-", "Negative Response")) %>% 
+  mutate(age = replace(age, age == "1", "=< 100 mm")) %>% 
+  mutate(age = replace(age, age == "2", "> 100 mm"))  %>% 
+  mutate(HAB_1 = replace(HAB_1, HAB_1 == "R", "Rock")) %>%
+  mutate(HAB_1 = replace(HAB_1, HAB_1 == "RW", "Wood + Rock")) %>%
+  mutate(HAB_1 = replace(HAB_1, HAB_1 == "S", "Fine Sediment")) %>%
+  mutate(HAB_1 = replace(HAB_1, HAB_1 == "SW", "Wood + Fine Sediment")) %>%
+  ggplot(aes(x = as.numeric(min), y = sum, col = age)) + 
+  #geom_jitter(width = .1,height = .3) +
+  geom_point() + 
+  theme_minimal()  + 
+  xlab("Year") + 
+  ylab("Changepoint Frequency") +
+  ylim(0,3.5) + 
+  #geom_smooth(method = "lm", se = F) + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  labs(col = "Size") +
+  #scale_color_discrete(labels = c("Rock", "Wood + Rock","Fine Sediment","Wood + Fine Sediment")) + 
+  xlim(2000, 2019)+ 
+  geom_smooth(method = lm, se=F) +
+  facet_grid(lag_mean~HAB_1)
+```
+
+
+
+
+
+
+
+```{r} 
+
+## Alpha diversity -----------------------------
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove) %>%
+  mutate(EFFORT = as.numeric(EFFORT))
+# Data setup
+CPUE.w.sec = ((CPUE_wide_seconds(BEF_data) %>%
+                 unite("Group", c(YEAR, SITE)) %>% 
+                 column_to_rownames(., var = "Group") %>% 
+                 mutate(sumrow = rowSums(.)) %>%
+                 filter(sumrow>0) %>%
+                 select(-sumrow))) 
+
+CPUE.w.sec %>%
+  mutate(across(everything(), ~replace(., . >  0 , 1))) %>%
+  mutate(alpha_div = rowSums(.)) %>% 
+  rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>%
+  group_by(Year, Site, HAB_1) %>% 
+  ggplot(aes(x = as.numeric(Year), y = alpha_div, col = as.factor(Site))) +
+  geom_point() +
+  geom_smooth(method = lm, se = F) +
+  facet_wrap(~ HAB_1) 
+
+
+## Alpha diversity of rock habitats 
+
+c.h = unique(cpue.habs)
+
+cpue_alphadiv = CPUE.w.sec %>%
+  mutate(across(everything(), ~replace(., . >  0 , 1))) %>%
+  mutate(alpha_div = rowSums(.)) %>% 
+  rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>%
+  group_by(Year, HAB_1) %>%
+  filter(Year > 2003)
+
+
+cpue_alphadiv %>%
+  filter(Year > 2000 & HAB_1 != "NA") %>%
+  filter(HAB_1 != "R") %>% ## Need for FBL since only in 2003 was R sampled
+  ggplot(aes(x = as.numeric(Year), y = alpha_div, col = HAB_1)) +
+  geom_jitter(alpha = .2) + 
+  geom_smooth(method = lm, se = F) + 
+  theme_minimal() + 
+  ylab("Alpha Diversty") + xlab("Year") +labs(col = "Habitat") + 
+  scale_color_manual(labels = c( "Wood + Rock","Fine Sediment","Wood + Fine Sediment*"), values = pal[1:4])  
+
+
+
+
+
+
+CPUE.w.sec %>%
+  mutate(across(everything(), ~replace(., . >  0 , 1))) %>%
+  mutate(alpha_div = rowSums(.)) %>% 
+  rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>%
+  filter(Year == 2002, HAB_1 == "SW")
+
+## Temporal alpha diversity per site 
+
+
+
+S_alpha = cpue_alphadiv %>% filter(HAB_1 == "RW") %>% 
+  filter(Year > 2000)
+
+summary(lm(S_alpha$alpha_div ~ as.numeric(S_alpha$Year)))
+
+```
+
+
+```{r}
+## Shannon diversity index -------------------------
+
+library(vegan)
+
+shannon = CPUE.w.sec %>% 
+  mutate(diversity = diversity(., index = "shannon")) %>%
+  rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>%
+  group_by(Year, HAB_1) %>% 
+  select(Year, Site, HAB_1, diversity,  everything()) %>%
+  filter(Year > 2003)
+
+shannon %>%
+  filter(Year > 2000, HAB_1 != "NA") %>%
+  filter(HAB_1 != "R") %>%
+  ggplot(aes(x = as.numeric(Year), y = diversity, col = HAB_1), key_glyph = "rect") + 
+  geom_jitter(alpha = .2) + 
+  geom_smooth(method = lm, se = F) + 
+  theme_minimal() + 
+  ylab("Shannon Diversity Index") + 
+  xlab("Year") + 
+  labs(col = "Habitat") + 
+  scale_color_manual(labels = c("Wood + Rock*","Fine Sediment","Wood + Fine Sediment*"), values = pal[1:4] )
+ 
+
+
+shannon %>%
+  filter(Year > 2000) %>%
+  filter(HAB_1 == "SW") %>%
+  lm(data = ., Year ~ diversity) %>%
+  summary()
+
+
+```
+
+
+```{r}
+
+## Ratios ----------------------------
+
+
+## Proportion of SMB to all other native species through time 
+
+
+ratios = CPUE.w.sec %>% 
+  #mutate(non_bass_sum = BB + CC + CS + LT + MM + PS + RS + SS + ST + WS) %>%   mutate(native_sum = BB + CC + CS + LT + PS + SS + ST + WS) %>% ## LML
+  mutate(non_bass_sum = CC + LT + ST + WS + MM) %>% mutate(native_sum = CC + LT + ST + WS) %>%
+  mutate(ratio = non_bass_sum / SMB)  %>% 
+  mutate(native_ratio = native_sum / SMB) %>%
+  mutate(diversity = diversity(., index = "shannon")) %>%
+  rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  mutate(Site = as.numeric(Site)) %>%
+  left_join(c.h) %>% 
+  filter(ratio < 10000000 | native_ratio < 10000000) %>%
+  filter(Year > 2004)
+
+ratios %>% 
+  mutate(Year = as.numeric(Year)) %>%
+  filter(Year >= 2001 & HAB_1 != "NA", HAB_1 != "R") %>%
+  ggplot(aes( x = as.numeric(Year), y = log(native_ratio +1), col = HAB_1)) + 
+  theme_minimal() + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F) +
+  scale_color_manual(labels = c("Wood + Rock*","Fine Sediment*","Wood + Fine Sediment*"), values = pal[1:4] ) + 
+  xlab("Year") + 
+  ylab("log Ratio Native:Bass") + 
+  labs(col = "Habitat")
+
+
+
+ratios %>% 
+  mutate(Year = as.numeric(Year)) %>%
+  filter(Year >= 2001) %>%
+  filter(HAB_1 == "RW") %>%
+  lm(data = ., log(native_ratio+1) ~ as.numeric(Year)) %>%
+  summary()
+
+```
+
+```{r}
+## Counts of habitat sites 
+
+site_hab %>% group_by(HAB_1) %>% 
+  summarize(count = n()))
+
+
+CPUE.w.sec %>% rownames_to_column(var = "Site") %>% 
+  separate(Site, into = c("Year", "Site"), sep = "_") %>%
+  left_join(c.h) %>%
+  select(Year, Site, HAB_1, SMB_1, SMB_2) %>%
+  ggplot(aes(y = SMB_1, x = as.numeric(Year), col = Site)) + 
+  geom_point() + 
+  facet_wrap(~HAB_1) + 
+  theme(axis.text.x = element_text(angle=90, vjust = .5)) +
+  geom_smooth(method = "lm", se = F)
+```
+
+
+#### Comparing first bisby to little moose
+```{r}
+
+# Boat Electrofishing Data
+BEF_data_unfiltered = left_join(fish, sample, by = "YSAMP_N") %>%
+  filter(WATER %in% c("LML", "FBL"), 
+         GEAR == "BEF", 
+         GEAR_CODE == "NAF") %>%
+  filter(MONTH %in% c(4,5,6,7,8), YEAR >= 1998) %>%
+  separate(SITE_N, into = c("w", "y", "SITE"), remove = F) %>%
+  select(-w, -y) %>% filter(SITE != "")
+
+
+
+# Removing species ---------------
+`%nin%` = Negate(`%in%`) # sets up a way to exclude if in a string
+rare_threashold = 50 ## change this based on preference
+rare = BEF_data_unfiltered %>% group_by(SPECIES) %>% 
+  summarise(frequency = n()) %>% 
+  filter(frequency < rare_threashold)
+stocked = c("LLS", "RT") ## Stocked fish in little moose
+remove = c(stocked, rare$SPECIES) ## Remove SMB + RWF (targeted 2000s)
+# I'm also going to remove LT and RS because I want to focus mostly on native littoral fishes 
+
+
+BEF_data = BEF_data_unfiltered %>% filter(SPECIES %nin% remove)
+
+## Creating a data frame that defines neighboring habitat sites 
+neighbor =read.csv("Data/BEFsites_LengthAndHabitat.csv") %>%
+  filter(Water %in% c("LML",  "FBL")) %>%
+  select(SITE_N, Water, SITE, Habitat, Actual_Order, HAB_SITE) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  rename(WATER = Water)
+
+
+# Modifying to combine sites of the same habitat type that are next to each other
+### !!!!!! This is what is modified from the original !!!!!!
+#BEF_data = BEF_data %>% mutate(SITE = as.numeric(SITE)) %>%  left_join(neighbor) %>% 
+  #rename(SITE_actual = SITE) %>% 
+  #rename(SITE = HAB_SITE)
+
+# ------------------------------
+
+
+BEF_data = BEF_data %>% 
+ 
+  mutate(LENGTH = .bincode(LENGTH, breaks = c(0,100,8000))) %>%
+  unite("SPECIES", c(SPECIES, LENGTH), remove = F) %>% 
+  filter(!is.na(LENGTH)) 
+
+
+
+site_hab = BEF_data %>% select(WATER, SITE) %>%
+  rename(Site = SITE) %>%
+  unique() %>% arrange(Site)
+
+
+
+
+combined_CPUE = BEF_data %>%
+  mutate(EFFORT = as.numeric(EFFORT)) %>%
+  mutate(SITE = as.numeric(SITE)) %>%
+  left_join(site_hab)  %>%
+  left_join(neighbor) %>%
+  group_by(WATER, YEAR,SPECIES, SITE,Habitat, EFFORT) %>%
+  summarize(CPUE = n()) %>%
+  mutate(CPUE_min = CPUE / EFFORT) %>%
+  ungroup() %>%
+  group_by(WATER, YEAR, SPECIES, SITE, Habitat) %>%
+  summarize(CPUE_min = mean(CPUE_min))
+  
+
+combined_CPUE %>% filter(SPECIES %in% c("SMB_1", "SMB_2")) %>%
+  filter(Habitat != "NA") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_min))) + geom_jitter() + 
+  facet_wrap(~Habitat + ~SPECIES) + 
+  geom_smooth(aes(col = WATER))
+  
+
+combined_CPUE %>% filter(SPECIES %in% c("CC_1", "CC_2")) %>%
+  filter(Habitat != "NA") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_min))) + geom_point() + 
+  facet_wrap(~Habitat + ~SPECIES) + 
+  geom_smooth(aes(col = WATER))
+
+
+combined_CPUE %>% filter(SPECIES %in% c("SMB_1", "SMB_2")) %>%
+  filter(Habitat != "NA", Habitat != "N") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_min), col = Habitat)) + geom_jitter() + 
+  facet_wrap(~SPECIES + ~WATER) + 
+  geom_smooth(aes(col =Habitat))
+combined_CPUE %>% filter(SPECIES %in% c("CC_1", "CC_2")) %>%
+  filter(Habitat != "NA", Habitat != "N") %>%
+  ggplot(aes(x = YEAR, y = (CPUE_min), col = Habitat)) + geom_jitter() + 
+  facet_wrap(~SPECIES + ~WATER) + 
+  geom_smooth(aes(col =Habitat))
+```
+```{r}
+## Recapture of fish FBL ---
+
+# It does appear that they did some mark recapture of SMB in LML and then a CC/WS/MM/SMB in FBL
+
+BEF_data_unfiltered %>% filter(WATER == "LML") %>% 
+  select(YEAR, MONTH, SPECIES, CLIP_R)%>%
+  filter(CLIP_R != "NM", SPECIES %in% c("CC", "WS","MM","SMB"), YEAR < 2010)
+
+
+
+
+```
+
+```{r}
+# Accumulation of total CPUE... importance of particular sites
+
+YEAR_total = CPUE.w.sec %>% mutate(ID = row.names(.)) %>%
+  select(ID,everything()) %>%
+  separate(ID, into = c("YEAR", "SITE")) %>% pivot_longer(CC_1:WS_2, names_to = "SPECIES", values_to = "CPUE") %>%
+  separate(SPECIES, into  = c("SPECIES", "SIZE")) %>%
+  filter(SITE != "NA") %>%
+  group_by(YEAR, SPECIES) %>%
+  summarize(total_CPUE = sum(CPUE)) 
+
+SITE_totals =  CPUE.w.sec %>% mutate(ID = row.names(.)) %>%
+  select(ID,everything()) %>%
+  separate(ID, into = c("YEAR", "SITE")) %>% pivot_longer(CC_1:WS_2, names_to = "SPECIES", values_to = "CPUE") %>%
+  separate(SPECIES, into  = c("SPECIES", "SIZE")) %>%
+  filter(SITE != "NA") %>%
+  group_by(YEAR, SITE, SPECIES) %>%
+  summarize(site_CPUE = sum(CPUE)) 
+  
+  
+  
+
+accumulation = left_join(SITE_totals, YEAR_total) %>% 
+  filter(YEAR > 2004) %>%
+  ungroup() %>% 
+  mutate(YEAR = as.numeric(YEAR)) %>%
+  group_by(SPECIES, YEAR) %>%
+  arrange(YEAR,SPECIES, site_CPUE) %>%
+  filter() %>%
+  mutate(proportion = site_CPUE / total_CPUE) %>%
+  mutate(accumulation = proportion + lag(proportion, default = 0))%>%
+  mutate(x_val = c(1:length(unique(SITE)))) %>%
+  filter(SPECIES == "CC") 
+  
+  
+accumulation %>% ggplot(aes(x = x_val, y = -accumulation, col = as.factor(as.numeric(SITE)))) + 
+  geom_point() 
+
+accumulation %>% ungroup() %>% group_by(x_val, SITE) %>%
+  summarize(count = n()) %>% ggplot(aes(x = SITE, y = count, fill = x_val)) + geom_bar(stat = 'identity')
+  
+  
+accumulation %>% ungroup() %>% group_by(x_val, SITE) %>%
+  summarize(count = n()) %>% ggplot(aes(x = SITE, y = x_val, size = count)) + geom_point() 
+
+accumulation %>% ungroup() %>% group_by(x_val, SITE) %>%
+  summarize(count = n()) %>% ungroup() %>% group_by(SITE)
+
+
+accumulation %>% group_by(SITE) %>%
+  summarize(mean_x = mean(x_val), sd = sd(x_val)) %>%
+  ggplot(aes(x = reorder(SITE, mean_x), y = mean_x)) + 
+  theme_minimal() + 
+  geom_point(size = 3) + 
+  geom_pointrange(aes(x = reorder(SITE, mean_x),y = mean_x, ymin = mean_x - sd, ymax = mean_x + sd)) + 
+  ylab("Rank Importance") + 
+  xlab("FBL BEF Site")
+
+%>%
+  summarize(mean = mean(count), sd = sd(count))
+
+## Trying to do this for all species
+
+accumulation = left_join(SITE_totals, YEAR_total) %>% 
+  filter(YEAR > 2004) %>%
+  ungroup() %>% 
+  mutate(YEAR = as.numeric(YEAR)) %>%
+  group_by(SPECIES, YEAR) %>%
+  arrange(YEAR,SPECIES, site_CPUE) %>%
+  filter() %>%
+  mutate(proportion = site_CPUE / total_CPUE) %>%
+  mutate(accumulation = proportion + lag(proportion, default = 0))%>%
+  mutate(x_val = c(1:length(unique(SITE)))) 
+
+
+accumulation %>% group_by(SPECIES, SITE) %>%
+  summarize(mean_x = mean(x_val), sd = sd(x_val)) %>%
+  ggplot(aes(x = reorder(SITE, mean_x), y = mean_x)) + 
+  theme_minimal() + 
+  geom_point(size = 3) + 
+  geom_pointrange(aes(x = reorder(SITE, mean_x),y = mean_x, ymin = mean_x - sd, ymax = mean_x + sd)) + 
+  ylab("Rank Importance") + 
+  xlab("FBL BEF Site") + 
+  facet_wrap(~SPECIES, scales = "free_x") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = .5, size = 9))
+
+
+```
+
+
+
+
+
+```{r}
+## Co-occurance analysis? 
+
+pres_abs = t(CPUE.w.sec) %>% as.data.frame() %>%  mutate(across(everything(), ~replace(., . >  0 , 1)))
+
+library(cooccur)
+library(visNetwork)
+data(finches)
+
+
+co = print(cooccur(pres_abs, spp_names = T))
+
+nodes = data.frame(id = 1:nrow(pres_abs), 
+                   label = rownames(pres_abs), 
+                   color = '#606482',
+                   shadow = TRUE)
+
+edges <- data.frame(from = co$sp1, to = co$sp2,
+      color = ifelse(co$p_lt <= 0.05, '#B0B2C1', '#3C3F51'),
+      dashes = ifelse(co$p_lt <= 0.05, TRUE, FALSE))
+
+
+visNetwork(nodes = nodes, edges = edges) %>%
+    visIgraphLayout(layout = 'layout_with_kk')
+
+
+co %>% filter(p_lt < .05)
+
+min(co$prob_cooccur)
+
+co %>% filter(p_gt < .05) %>% filter(sp2_name == "SMB_1")
+
+ BEF_data %>% select(SITE, HAB_1) %>% unique() %>% filter(HAB_1 == "SW")
+
+pres_abs_sandy = CPUE.w.sec %>% rownames_to_column() %>% filter(grepl("_002|_004|_021|_031|_012|_028|_023|_018|_032", rowname)) %>% column_to_rownames(var = "rowname")  %>%  mutate(across(everything(), ~replace(., . >  0 , 1))) %>% t()
+
+co_sandy = print(cooccur(pres_abs_sandy, spp_names = T))
+
+co_sandy %>% as.data.frame() %>%  filter(p_lt < .05)
+
+
+pres_abs_SW =  CPUE.w.sec %>% rownames_to_column() %>% filter(grepl("_005|_019|_020|_025|_027|_024", rowname)) %>% column_to_rownames(var = "rowname")  %>%  mutate(across(everything(), ~replace(., . >  0 , 1))) %>% t()
+
+
+co_SW = print(cooccur(pres_abs_SW, spp_names = T))
+
+co_SW %>% as.data.frame() %>%  filter(p_lt < .05 )
+
+## ALSC co-occur 
+
+
+pres_abs = t(rare)
+
+```

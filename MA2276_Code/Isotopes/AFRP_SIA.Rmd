@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 ```
 
 ```{r, message = F}
@@ -57,6 +58,7 @@ SI %>%
 ```
 
 ```{r, message=F}
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
 LML = read.csv("JML.Data.Master.csv", header=T)
 
 fish = read.csv("FISH_MEASUREMENT_whole.csv")

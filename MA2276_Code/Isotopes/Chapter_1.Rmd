@@ -1,0 +1,628 @@
+---
+title: 'Chapter 1: ADK Community Rarity'
+author: "Montana"
+date: "2024-02-20"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP')
+
+```
+
+# Isotopic Perspectives on Common and Rare Lake Fishes: Trophic Position, Niche Overlap, and Niche Size
+## Here is the clean script for the ADK community + species rarity manuscript. 
+
+
+```{r, echo = F, message = F, warning = F, results='hide'}
+## ----------------------------- Data Loading and Library Loading ---------------
+## Data Loading 
+load("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP/isotopedata.RData")
+## Library loading 
+setwd("C:/Users/monta/OneDrive - Airey Family/GitHub/AFRP")
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(SIBER)
+library(readr)
+library(tidyverse)
+library(tidyselect)
+library(stringr)
+library(vegan)
+library(ggpattern)
+library(gridExtra)
+`%nin%` = Negate(`%in%`)
+library(wesanderson)
+library(rfishbase)
+
+## Source 
+source("MA2276_Code/Isotopes/isotope_functions.R")
+
+## Combined data file with 2020 and 2021 data
+data = read.csv(file = "MA2276_Code/Data/Dissertation_Isotopes/combined_iso_data.csv")
+
+# Code out incomplete communities
+dd_communities = c(6,18,21)
+
+# Baselines
+
+baselines = read.csv(file = "baselines_isodata.csv")
+trophic_pos.simp = read.csv(file = "trophic_position_frame.csv")
+
+
+## filter data to remove incomplete communities 
+data = data %>% filter(community %nin% dd_communities ) %>%
+  select(-X)
+
+# Color palettes
+pal <- wes_palette("Zissou1", 100, type = "continuous")
+
+## 95% credible interval funciton
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs=c(0.05, 0.25, 0.5, 0.75, 0.95))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+dat_spec = read.csv(file = "ALSC Analysis/species_alsc.csv")
+```
+
+```{r, echo = F, message = F, warning = F}
+## ------------------------ ALSC Data ------------------------------------------
+
+
+
+#### Pres/abs -------
+alsc_p.a = read.csv("ALSC Analysis/ALSCDATA_fish_altered.csv", header=T)[,1:54] %>% 
+  replace(!is.na(.),1)  %>%
+  replace(is.na(.),0) %>%
+  mutate(Richness = rowSums(.)) %>%
+  cbind(read.csv("ALSC Analysis/ALSCDATA_fish_altered.csv", header=T)[,56:60]) %>%
+  cbind(read.csv("ALSC Analysis/ALSCDATA_chem_altered.csv",header=T)) %>%
+  #rename(Long = LONG..NAD83.DD.)%>%
+  mutate(LONG = LONG*-1) %>%
+  filter(Richness > 0)
+
+#### Abundance -----------
+alsc_abundance = read.csv("ALSC Analysis/ALSCDATA_fish_altered.csv", header=T)%>%
+  replace(is.na(.),0 ) %>%
+  mutate(Richness = rowSums(.[,1:54])) %>%
+  cbind(.,read.csv("ALSC Analysis/ALSCDATA_chem_altered.csv",header=T)) %>%
+  select(-NF) %>%
+  #rename(Long = LONG..NAD83.DD.)%>%
+  mutate(LONG = LONG*-1)%>%
+  filter(Richness != 0 )
+
+end_spp = which(colnames(alsc_p.a)=="Volume.m3.")-1 
+sp_waters = alsc_p.a[,1:end_spp] %>% colSums(.)
+common_spp =which(sp_waters > 10) 
+
+rare = alsc_abundance[,common_spp] %>%
+  mutate(Richness = rowSums(.)) %>%
+  filter(Richness != 0 ) %>%
+  select(-Richness) %>% 
+  #select(-Volume.m3.) %>% 
+  #select(-BC, -BS) %>%
+  mutate(Volume.m3.bin= .bincode(Volume.m3., min_bin)) %>%
+  mutate(row.sum = rowSums(.[1:(length(.)-2)])) %>% 
+  filter(row.sum > 0) %>% 
+  select(-row.sum)
+
+## Data manipulations
+rare_dat = rare %>% select(-Volume.m3., -Volume.m3.bin)
+
+
+## Co-occurrence matrix
+coccur_matrix = alsc_p.a %>% 
+  select((ST:(all_of(end_spp)-1))) %>%
+  rownames_to_column() %>%
+  pivot_longer(2:end_spp,names_to = "Species" ) %>%
+  filter(value>0) %>% 
+  mutate(species = Species) %>% 
+  group_by(rowname) %>%
+  complete( species,Species,value) %>% 
+  ungroup() %>%  
+  group_by(Species, species) %>%
+  unique() %>% 
+  summarize(cooccur = n())  %>%
+  rename(s2 = species)
+
+## Proportion of ALSC lakes 
+prop_abund = prop_comm %>% 
+  left_join(average_abundance) %>%
+  mutate(prop_abund_metric  = proportion*average_abundance)
+
+```
+
+
+```{r, echo = F, message = F, warning = F, results='hide'}
+## ----------------------------Overlap------------------------------------------
+
+
+dat_spec2 = dat_spec %>%
+  mutate(s2 = Species, familys2 = family) %>% 
+  select(s2, familys2)
+coccur_matrix = alsc_p.a %>% 
+  select((ST:(all_of(end_spp)-1))) %>%
+  rownames_to_column() %>%
+  pivot_longer(2:end_spp,names_to = "Species" ) %>%
+  filter(value>0) %>% 
+  mutate(species = Species) %>% 
+  group_by(rowname) %>%
+  complete( species,Species,value) %>% 
+  ungroup() %>%  
+  group_by(Species, species) %>%
+  unique() %>% 
+  summarize(cooccur = n())  %>%
+  rename(s2 = species)
+
+### Overlap function -------------
+dumb_fix = c(1:26)[-dd_communities]
+overlap_list = list() 
+
+for(h in 1:length(dumb_fix)){
+  
+  overlap_list[[h]] = overlap(data,dumb_fix[h],20) %>% as.data.frame() 
+  
+  
+}
+
+
+# Code to reduce list to matrix 
+overlap_data = Reduce(full_join, overlap_list) %>%
+  select('Spp Pair', everything())
+
+overlap_coocur = overlap_data %>% 
+  pivot_longer(2:length(.[1,]), names_to = "Community", values_to = "Values") %>% 
+  na.omit() %>%
+  rename("Species_Pair" = `Spp Pair`) %>% 
+  group_by(Species_Pair) %>% 
+  #summarize(mean = mean(as.numeric(Values), na.rm = T)) %>%
+  separate(Species_Pair, into = c("s1", "v", "s2"), sep = " ") %>% 
+  select(-v) %>%
+  filter(s1 != s2) %>% rename(Species = "s1") %>% 
+  mutate(Species = str_replace(Species, "NPD", "PD")) %>% 
+  mutate(Species = str_replace(Species, "BNM", "BM")) %>%
+  mutate(s2 = str_replace(s2, "NPD", "PD")) %>% 
+  mutate(s2 = str_replace(s2, "BNM", "BM")) %>%
+  #left_join(prop_comm) %>% 
+  full_join(coccur_matrix) %>%
+  left_join(dat_spec) %>% 
+  left_join(dat_spec2) %>%
+  unite("species_pair",family, familys2, remove = F) %>% 
+  filter(Values >0) %>% 
+  filter(species_pair %in% c("Centrarchid_Centrarchid", 
+                             "leuciscidae_leuciscidae", 
+                             "salmonidae_salmonidae",
+                             "Centrarchid_leuciscidae",
+                             "leuciscidae_Centrarchid",
+                             "Catostomid_leuciscidae",
+                             "Catostomid_Centrarchid"))
+
+```
+
+#### Visualization of overlap across all species pairs
+```{r, echo = F, message = F, warning = F}
+labs_overlap = c("BK" = "banded killifish", "RS" = "rainbow smelt","FO" = "Allegheny crayfish", "FI"= "calico crayfish", "CR" = "robust crayfish", "BB" = "brown bullhead", "PS" = "pumpkinseed", "SMB" = "smallmouth bass", "RBS"= "redbreasted sunfish", "MM" = "Central Mudminnow", "LLS" = "Atlantic salmon", "ST" = "brook trout", "WS" = "white sucker", "NRD" =  "N. redbelly dace", "NPD"= "N. pearl dace", "GS" = "golden shiner", "FSD" = "finescale dace", "FHM" = "fathead minnow", "CS" = "common shiner", "CLM" = "cutlips minnow", "CC" = "creek chub", "BNM" = "bluntnose minnow", "BND" = "blacknose dace")
+
+overlap_data %>% 
+  #distinct(`Com 1`, `Com 2`, `Com 3`, `Com 4`, `Com 5`, `Com 7`, `Com 8`,`Com 9`, `Com 10`, `Com 11`,`Com 12`,`Com 13`,`Com 14`, `Com 15`, `Com 16`, `Com 17`,`Com 19`,`Com 20`,`Com 22`,`Com 23`,`Com 24`,`Com 25`,`Com 26` , .keep_all = T) %>%
+  pivot_longer(2:length(.[1,]), names_to = "Community", values_to = "Values") %>% na.omit() %>%
+  rename("Species_Pair" = `Spp Pair`) %>% 
+  group_by(Species_Pair) %>% 
+  summarize(mean = median(as.numeric(Values), na.rm = T)) %>%
+  separate(Species_Pair, into = c("s1", "v", "s2"), sep = " ") %>% 
+  select(-v) %>%
+  filter(s1 != s2) %>% 
+  filter(s1 != "FSD-NRD", s2 != "FSD-NRD") %>% 
+  #distinct(mean, .keep_all = T) %>%
+  ggplot(aes(x = s1, y = s2, col = as.numeric(mean))) +
+  geom_point(size = 5) + 
+  #scale_color_viridis() + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = .5 )) +
+  ylab("") + xlab("") +
+  labs(color = "Overlap") + 
+  scale_x_discrete(limits = level_order,labels =labs_overlap) +
+  scale_y_discrete(limits = level_order, labels =labs_overlap) +
+  scale_color_gradientn(colours = pal) 
+```
+
+#### Visualization of overlap across co-occurrence patterns of ALSC fish
+```{r, echo = F, message = F, warning = F}
+overlap_coocur %>%
+  filter(family %in% c("Centrarchid","leuciscidae", "Catostomid"), familys2 %in% c("Centrarchid","leuciscidae","Catostomid")) %>%
+  ## Try to get mean points 
+  group_by(Species, s2, cooccur, species_pair) %>% 
+  summarise(Values = median(as.numeric(Values))) %>%
+  mutate(cooccur = cooccur / 1469) %>%
+  ggplot(aes(x = cooccur, y =as.numeric(Values))) +
+  geom_point(col = "#7E9181", size = 3) + 
+  geom_smooth(method = lm, col = "#7E9181") +
+  #xlim(0,300) + 
+  theme_minimal() +
+  ylab("median pairwise overlap") + 
+  xlab("co-occurrence (proportion of ALSC lakes)")
+```
+
+
+```{r, echo = F, message = F, warning = F, results='hide'}
+
+
+## ------------------------------- Relative Area -------------------------------
+relative_list = list()
+median_areas = rep(0, 8)
+vec_list = list() 
+c_list = list()
+n_list = list()
+area_list = list() 
+dumb_fix_relative = dumb_fix[c(-4, -9,-11,-12,-18, -20)]
+dumb_fix_relative[8:19]
+for(h in dumb_fix_relative){
+  
+  dat = data_setup(data,h)
+  
+  ellipse.area = siberEllipses(dat[[2]])
+  TA = rowSums(ellipse.area)
+  ellipse.area = ellipse.area/TA
+  
+  names = unique(legend$CODE[dat[[3]]$group])
+  name_common = unique(legend$common[dat[[3]]$group])
+  
+  colnames(ellipse.area) = names
+  vec = vector()
+  for(i in 1:length(ellipse.area[1,])){
+    cat= ellipse.area[ellipse.area[,i] >  quantile(x = ellipse.area[,i], 
+                                                   probs = .05) &
+                        ellipse.area[,i] < quantile(x = ellipse.area[,i], 
+                                                    probs = .95),i]
+    vec = cbind(vec, cat)
+  }
+  colnames(vec) = names
+  
+  median_area = vec %>% as.data.frame() %>%
+    summarise_all(list(median))
+  
+  p = vec %>%
+    as.data.frame() %>%
+    pivot_longer(1:length(names(dat[[2]])),
+                 names_to = "SP",
+                 values_to = "Dat") 
+  g = ggplot() + 
+    geom_point(p, mapping = aes(y = SP , x = Dat, col = SP)) + 
+    xlim(0,1) + 
+    ggtitle(lake_2023$Water[h]) +
+    ylab("Species") + 
+    xlab("Relative Niche Area") + 
+    theme(text = element_text(size = 18)) +
+    geom_point(mapping =aes(x = as.numeric(median_area[1,]), 
+                            y = unique(p$SP)),
+               col = unique(legend$color[sort(unique(dat[[3]]$group))]), pch = "|", size = 5)+ 
+    scale_color_manual(values = legend$color[sort(unique(dat[[3]]$group))], 
+                       
+                       name = "Species")
+  colnames(median_area) = paste(colnames(median_area),lake_2023$Water[h], sep=" ")
+  relative_list[[h]] = (median_area[1,])
+  median_areas[h] = mean(as.numeric(median_area[1,]))
+  vec_list[[h]] = as.data.frame(vec) %>% mutate(Water = lake_2023$Name[h]) %>%
+    select(Water, everything()) %>%
+    pivot_longer(1:length(vec[1,])+1, names_to = "Species", values_to = "Overlap")
+  
+
+  
+  
+  area_list[[h]] = siberEllipses(dat[[2]]) %>%
+    as.data.frame() %>% 
+    mutate(Water = lake_2023$Name[h]) %>% 
+    select(Water, everything()) %>% 
+    as.data.frame() %>%  
+    pivot_longer(1:length(vec[1,])+1,
+                 names_to = "Species", 
+                 values_to = "Overlap") %>%
+    mutate(posterior_draw = rep(c(1:4000), each = length(unique(p$SP)))) %>%
+    sample_n(300)
+  
+  area_list[[h]]  = p %>% 
+    mutate(post = rep(c(1:3600),  each = length(unique(p$SP)))) %>%
+    mutate(WATER = lake_2023[h,3] )
+}
+
+
+###  Data setup for relative area comparisons -----
+
+
+names(vec_list) = lake_2023$Name
+names(area_list) = lake_2023$Name
+
+relative = unlist(relative_list)
+
+
+med_relative.data = data.frame(med_area = relative, ID = names(relative)) %>%
+  separate(ID, into = c("Species", "Water"),sep = " ")
+
+full_relative = Reduce(full_join, area_list[c(1,2,3,5,7,8,9,11,14,15,16,17,19,22, 24,25,26)])
+
+
+
+```
+
+```{r, echo = F, message = F, warning = F}
+
+
+mean_med = med_relative.data %>%
+  mutate(Species = str_replace(Species, "NPD", "PD")) %>% 
+  mutate(Species = str_replace(Species, "BNM", "BM")) %>%
+  left_join(prop_comm) %>%
+  left_join(dat_spec) %>% 
+  left_join(prop_abund) %>%
+  group_by(Species, family, proportion, prop_abund_metric) %>%
+  mutate(proportion_bin = .bincode(proportion, prop_bin)) %>%
+  na.omit() %>% 
+  group_by(Species,proportion, proportion_bin, family) %>% 
+  summarize(med_area = mean(med_area))
+
+mean_med %>% 
+  filter(Species != "BB") %>% 
+  ggplot(aes(x = proportion,
+             y = med_area)) +
+  geom_text(aes(label = Species), col = "#7E9181", size = 3) +
+  geom_smooth(method = "lm",  col = "#7E9181") + 
+  theme_minimal() + 
+  xlab("proportion of ALSC lakes") +
+  ylab("relative niche area")
+
+```
+
+```{r, echo = F, message = F, warning = F}
+## Credible area comparison relative area ------------------
+
+full_relative %>% group_by(SP, post) %>% 
+  summarize(average_dat = mean(Dat)) %>%
+  filter(SP %nin% c("FSD-NRD", "FO", "FI", "CR")) %>%
+  ungroup() %>%
+  rename(Species = SP) %>% 
+  mutate(Species = str_replace(Species, "NPD", "PD")) %>% 
+  mutate(Species = str_replace(Species, "BNM", "BM")) %>%
+  left_join(dat_spec) %>%
+  left_join(prop_abund) %>% 
+  ggplot(., aes(y = reorder(Common, proportion), x = average_dat, fill = proportion)) +
+  theme_minimal() + 
+  stat_summary(fun.data = quantiles_95, geom="boxplot",color = "gray") +
+  #viridis::scale_fill_viridis() + 
+  ylab("") + 
+  xlab("Mean Relative Area") + 
+  labs(color="Proportion") +
+  scale_fill_gradientn(colours = pal)
+
+```
+#### NMDS of ALSC fish communities ----------------------------------------
+
+```{r, echo = F, message = F, warning = F, results='hide'}
+## NMDS ----------------
+rare = alsc_p.a[,common_spp] %>%
+  mutate(Richness = rowSums(.)) %>%
+  filter(Richness != 0 ) %>%
+  select(-Richness) %>% 
+  
+  mutate(row.sum = rowSums(.)) %>% 
+  filter(row.sum > 0) %>% 
+  select(-row.sum)
+
+
+data_nmds=sample(c(1:length(rare[,1])), size=900, replace=F)
+
+
+dat_spec.frame = dat_spec %>%
+  as.data.frame() %>% 
+  mutate(nat_therm = paste(upland_invasive, thermal)) %>%
+  mutate(group_therm = paste(upland_invasive,group))
+
+nmds_codes = alsc_fish_codes %>%
+  rename( "Scientific" = Species ) %>% 
+  rename("Species" = code)
+
+nmds=metaMDS(rare[data_nmds,], k=2)
+
+nmds$species %>% as.data.frame()  %>%
+  select(MDS1, MDS2) %>% 
+  mutate(Species = rownames(.)) %>% 
+  left_join(dat_spec) %>% 
+  left_join(nmds_codes) %>%
+  as.data.frame() %>%
+  ggplot(aes(x = MDS1, y = MDS2,
+             label =(Common), color = upland_invasive)) + 
+  
+  theme_minimal() +
+  geom_text(size =3.5,key_glyph = "rect")+ 
+  stat_ellipse(level = .9, size = 1) + 
+  #ggtitle("ALSC - pres/abs, rare = 10, k = 2, size = 900")+
+  xlim(-.1,.05) +
+  labs(col = "Status") +
+  #scale_color_discrete( labels = c(int = "Invasive", nat = "Native", low_only = "Lowland Native"), ) +
+  scale_color_manual(labels = c("Invasive","Lowland Native","Native"), values= c("#588157","#988F2A","#725752")) 
+```
+
+
+## Nestedness in ALSC Native fish communities -----------------------------
+```{r, echo = F, message = F, warning = F}
+dat_spec = read.csv("ALSC Analysis/species_alsc.csv")
+## Overall community nestedness
+watershed_pres = alsc_p.a %>%
+  pivot_longer(ST:AW, names_to ="Species", values_to =  "Presence") %>% 
+  left_join(dat_spec) %>% 
+  filter(upland_invasive == "nat") %>% ## filters to only include native species 
+  select(Common, Presence, Watershed) %>% 
+  group_by(Watershed, Common) %>%
+  summarize(watershed_pres = sum(Presence)) %>% 
+  mutate(watershed_pres = case_when(
+    watershed_pres > 0 ~ 1, 
+    TRUE   ~ watershed_pres)) %>%
+  mutate(watershed_pres = as.numeric(watershed_pres)) %>%
+  pivot_wider(names_from = Common, values_from = watershed_pres)%>% 
+  column_to_rownames(var = "Watershed") %>% t()
+
+k = nestednodf(watershed_pres)
+
+k$statistic
+
+
+
+k$comm %>% as.data.frame %>%
+  rownames_to_column(var = "rowname") %>%
+  pivot_longer(2:9, names_to = "Watershed", values_to = "Nest") %>%
+  rename(Species = rowname) %>%
+  left_join(dat_spec) %>%
+  ggplot(aes(y = factor(Species, 
+                        level = rownames(k$comm)),
+             x = factor(Watershed,
+                        level = colnames(k$comm)), 
+             fill = as.factor(Nest))) +
+  theme_minimal() + 
+  geom_tile()  +
+  theme(axis.text.x = element_text(angle = 90), text = element_text(size = 12)) + 
+  theme(axis.text.y = element_text(size = 12)) + 
+  scale_fill_manual(values = c(
+    "0" = "white",
+    "1" = "#7E9181"
+  )) + 
+  
+  ylim(rev(rownames(k$comm))) +  
+  ylab("") +
+  xlab("") +
+  theme(legend.position="none")
+```
+
+## Trophic position
+
+```{r, echo = F, message = F, warning = F}
+## To convert down a trophic pos just subtract 1 from trophic position
+```
+
+## Fishbase ---------------------------
+
+```{r, echo = F, message = F, warning = F}
+alsc_fish_codes = read.csv("alsc_fish_codes.csv")
+alsc_fish_codes_native = alsc_fish_codes %>% 
+  filter(code %nin% c("BT","GS","RT","CP","CRP",
+                      "RB","YP","LMB","SMB","BC",
+                      "MM","BK","SPL","KOK","BG",
+                      "WE","TM","LLS","ESM","RS",
+                      "BRM","TGT","SAL","MCS","BDS",
+                      "AW", "BM"))
+ecology_adk = ecology(alsc_fish_codes$Species) %>% select(SpecCode, Species, Herbivory2, FeedingType, DietTroph, FoodTroph)
+length_matrix =  species(alsc_fishspecies, fields = c("Species","CommonLength"))
+ecology = left_join(ecology_adk, length_matrix)
+```
+
+```{r, echo = F, message = F, warning = F}
+ecology_adk %>% left_join(adk_fish_codes) %>% 
+  rename(CODE = code) %>%
+  full_join(trophic_pos.simp) %>%
+  rename(Fishbase = DietTroph, ADK = mean_troph) %>% 
+  left_join(fish_base_propcom)%>% 
+  filter(proportion > 0) %>%
+  filter(CODE %nin% c("LND", "ESM")) %>%
+  select(CODE, Fishbase, FoodTroph, ADK, sd_troph, proportion) %>%
+  pivot_longer(Fishbase:ADK, names_to = "Type", values_to = "TP") %>%
+  na.omit() %>%
+  mutate(Functional = case_when(TP >= 2.8 ~ "mainly animals", TP < 2.8 & TP >= 2.2 ~ "plants, detritus, animals", TP < 2.2 ~ "plants + detritus")) %>%
+  rename(Species = CODE) %>%
+  left_join(dat_spec) %>%
+  ggplot(.) + 
+  
+  geom_pointrange(data = . %>% filter(Type == "ADK"), aes(x = TP, y = Common, xmin = TP - sd_troph, xmax = TP + sd_troph)) +
+  geom_point(aes(x = TP, 
+                 y = reorder(Common, proportion),  shape = Type, col = Functional), size = 5)+
+  #geom_pointrange(aes(x = TP, y = CODE, xmin = ADK - sd_troph, xmax = ADK + sd_troph))+
+  theme_minimal() + 
+  ylab("") + 
+  xlab("Trophic Position") + 
+  scale_color_manual(values = c(wes_palette("Cavalcanti1",5)[1], wes_palette("Cavalcanti1",5)[4])) +
+  scale_shape_discrete( labels = c("ADK Isotopes", "Fishbase Diet Only", "Fishbase Trophic"))
+
+```
+
+#### Predator Presence ---------------------------------------------------
+
+```{r, echo = F, message = F, warning = F}
+## Pairwise overlap vs. predator presence 
+
+
+pred_join = trophic_pos %>% 
+  filter(CODE == "CC") %>%
+  ungroup() %>% 
+  mutate(pred = c(0,0,1, 1, 1, 0, 0)) %>% 
+  select(WATER, pred) 
+
+
+pairwise_pred = overlap_coocur %>%
+  filter(Species == "CC" | s2 == "CC") %>%
+  distinct(Values,.keep_all = T) %>%
+  mutate(Community = parse_number(Community)) %>% left_join(lake_2023) %>%
+  rename(WATER = Water) %>%
+  left_join(pred_join) %>%
+  mutate(pred_new = case_when(is.na(pred)==T ~ 0,
+                              is.na(pred)==F ~ pred)) %>%
+  ggplot(aes(x = as.factor(pred_new),
+             y = as.numeric(Values), fill = as.factor(pred_new))) +
+  geom_boxplot() +
+  theme_minimal()+
+  scale_fill_manual(values = c(wes_palette("Zissou1",5)[1], wes_palette("Cavalcanti1",5)[3])) + 
+  theme(legend.position = "none") +
+  ylab("median pairwise overlap") +
+  xlab("predator presence")
+
+relative_pred = full_relative %>% group_by(WATER, SP) %>% 
+  filter(SP %nin% c("FSD-NRD", "FO", "FI", "CR")) %>%
+  summarise(mean_a = median(Dat), SD_a = sd(Dat)) %>% 
+  rename(Name = WATER) %>%
+  left_join(lake_2023) %>%
+  rename(WATER = Water) %>%
+  left_join(pred_join) %>%
+  mutate(pred_new = case_when(is.na(pred)==T ~ 0, is.na(pred)==F ~ pred))%>%
+  ggplot(aes(x = as.factor(pred_new), y = mean_a, fill=as.factor(pred_new))) + 
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = c(wes_palette("Zissou1",5)[1], wes_palette("Cavalcanti1",5)[3])) + 
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  ylab("median relative area") +
+  xlab("predator presence") + 
+  ylim(0,.5)
+
+trophic_pred = read.csv("df_iso.csv") %>% filter(TAXA != "INVERT") %>% select(WATER, CODE, d15N) %>% 
+  left_join(baselines) %>% 
+  mutate(trophic_position = 2 + ((d15N-base_d15N) / (3.14))) %>% 
+  #filter(CODE == "CC")%>%
+  left_join(pred_join) %>%
+  na.omit() %>%
+  ggplot(aes(x = as.factor(pred), y = trophic_position, fill = as.factor(pred))) + 
+  geom_boxplot() +
+  theme_minimal() +
+  ylab("Isotopic Trophic Position") + 
+  xlab("Predator Present") +
+  scale_fill_manual(values = c(wes_palette("Zissou1",5)[1], wes_palette("Cavalcanti1",5)[3])) + 
+  theme(legend.position = "none")
+dat_spec.mod = dat_spec %>% rename(CODE = Species)
+alsc_trophic = ecology_adk %>% left_join(alsc_fish_codes) %>% 
+  rename(CODE = code) %>%
+  left_join(dat_spec.mod) %>%
+  filter(Herbivory2 == "mainly animals (troph. 2.8 and up)") %>%
+  filter(upland_invasive != "low_only") %>%
+  mutate(upland_invasive = case_when(upland_invasive == "int" ~ "introduced", upland_invasive == "nat" ~ "native")) %>%
+  ggplot(aes(x = upland_invasive, y = FoodTroph)) +
+  theme_minimal() + 
+  geom_boxplot(aes(fill = upland_invasive)) +
+  geom_point() +
+  ylab("Trophic Position") + 
+  xlab("Predator Type") +
+  scale_fill_manual(values = c(wes_palette("Zissou1",5)[1], wes_palette("Cavalcanti1",5)[3])) + 
+  theme(legend.position = "none")
+
+grid.arrange(pairwise_pred, relative_pred, trophic_pred, alsc_trophic)
+
+```
+
+
