@@ -1,0 +1,147 @@
+```{r}
+
+
+unique(presabs)
+library(dplyr)
+library(plyr)
+(n_distinct(presabs))
+which(presabs[]==distinct(presabs, .keep_all = T)[1,])
+mat=count(presabs)
+
+community_frequency = mat[which(mat[,56] > 5),]
+community_frequency=community_frequency[-2,]
+most_frequent_individuals = vec()
+for(i in 1:length(presabs[1,])){
+  list.append(most_frequent_individuals,sum(presabs[,i]))
+}
+```
+
+```{r}
+## Checkerboard output of species that never co-occur and those that do 
+library(EcoSimR)
+chec = t(presabs[,-55])
+chec2 = t(cpresabs)
+checker(chec2)
+
+model = cooc_null_model(chec2, metric = "checker", burn_in = 5000)
+summary(model)
+plot(model, type="burn_in")
+plot(model, type="hist")
+plot(model, type="cooc")
+mean(model$Sim) 
+
+c = (c_score(chec2))
+c_score_skew(chec2) # large, positive number implies many species pairs with large C-Scores which  means the community is segregated. A large, negative number means that species tend to be more aggregated than expected
+c_score_var(chec2) # large values imply that some spcies are very strongly segregated and others have random or aggregated distributions 
+```
+
+
+```{r}
+
+#pairwise comparisons 
+creek_common = chec2[c(8,9),]
+cc_ccs = cooc_null_model(creek_common, burn_in = 5000, algo = "sim2")
+summary(cc_ccs)
+plot(cc_ccs, type="burn_in")
+plot(cc_ccs, type="hist")
+
+
+golden_common = chec2[c(35,7),]
+ccs_gs = cooc_null_model(golden_common, burn_in = 1000, algo = "sim2")
+summary(ccs_gs)
+plot(ccs_gs, type="burn_in")
+plot(ccs_gs, type="hist")
+
+creek_golden = chec2[c(7,9),]
+cc_gs = cooc_null_model(creek_golden, burn_in = 5000, algo = "sim2")
+summary(cc_gs)
+plot(cc_gs, type="burn_in")
+plot(cc_gs, type="hist")
+
+
+belly_common = chec2[c(11,8),]
+nrd_ccs = cooc_null_model(belly_common, burn_in = 5000, algo = "sim2")
+summary(nrd_ccs)
+plot(nrd_ccs, type="burn_in")
+plot(nrd_ccs, type="hist")
+
+belly_golden = chec2[c(11,7),]
+nrd_gs = cooc_null_model(belly_golden, burn_in = 5000, algo = "sim2")
+summary(nrd_gs)
+plot(nrd_gs, type="burn_in")
+plot(nrd_gs, type="hist")
+
+belly_creek = chec2[c(11,9),]
+nrd_cc = cooc_null_model(belly_creek, burn_in = 5000, algo = "sim2")
+summary(nrd_cc)
+plot(nrd_cc, type="burn_in")
+plot(nrd_cc, type="hist")
+## creek chub and common shiner are not non-randomly distributed
+
+pearl_belly = chec2[c(11,29),]
+nrd_pd = cooc_null_model(pearl_belly, burn_in = 5000, algo = "sim2")
+summary(nrd_pd)
+plot(nrd_pd, type="hist")
+
+pearl_common = chec2[c(29,8),]
+ccs_pd = cooc_null_model(pearl_common, burn_in = 5000, algo = "sim2")
+summary(ccs_pd)
+plot(ccs_pd, type="hist")
+
+pearl_creek = chec2[c(29,9),]
+cc_pd = cooc_null_model(pearl_creek, burn_in = 5000, algo = "sim2")
+summary(cc_pd)
+plot(cc_pd, type="hist")
+
+pearl_golden = chec2[c(29,7),]
+gs_pd = cooc_null_model(pearl_golden, burn_in = 5000, algo = "sim2")
+summary(gs_pd)
+plot(gs_pd, type="hist")
+
+lc_golden = chec2[c(27,7),]
+lc_gs = cooc_null_model(lc_golden, burn_in = 5000, algo = "sim2")
+summary(lc_gs)
+plot(gs_pd, type="hist")
+
+lc_creek = chec2[c(27,9),]
+lc_cc = cooc_null_model(lc_creek, burn_in = 5000, algo = "sim2")
+summary(lc_cc)
+plot(gs_pd, type="hist")
+
+lc_common = chec2[c(27,8),]
+lc_cs = cooc_null_model(lc_common, burn_in = 5000, algo = "sim2")
+summary(lc_cs)
+plot(lc_cc, type="hist")
+
+lc_belly = chec2[c(27,11),]
+lc_nrd = cooc_null_model(lc_belly, burn_in = 5000, algo = "sim2")
+summary(lc_nrd)
+plot(lc_nrd, type="hist")
+
+lc_pearl = chec2[c(27,29),]
+lc_pd = cooc_null_model(lc_pearl, burn_in = 5000, algo = "sim2")
+summary(lc_pd)
+plot(lc_pd, type="hist")
+
+
+lc_lips = chec2[c(14,17),]
+lc_clm = cooc_null_model(lc_lips, burn_in = 5000, algo = "sim2")
+summary(lc_clm)
+plot(lc_clm, type="hist")
+
+
+
+
+```
+
+
+```{r}
+t.test(lakes$Elevation..m.[which(lakes$SMB != 0)],lakes$Elevation..m.[which(lakes$ST != 0)])
+boxplot(lakes$Elevation..m.[which(lakes$SMB != 0)],lakes$Elevation..m.[which(lakes$ST != 0)])
+
+plot(lakes$Elevation..m.[which(lakes$SMB != 0)],lakes$LAT..NAD83.DD.[which(lakes$SMB != 0)])
+points(lakes$Elevation..m.[which(lakes$ST != 0)],lakes$LAT..NAD83.DD.[which(lakes$ST != 0)], col=2)
+
+
+
+```

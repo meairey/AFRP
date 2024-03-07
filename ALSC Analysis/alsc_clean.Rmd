@@ -1,0 +1,345 @@
+```{r}
+##### This contains the cleaned stats from alscdata.RMD
+# Libraries used in analysis
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(mapdata)
+library(vegan)
+library(rlist)
+library(ape)
+library(dplyr)
+
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+#library(ggbiplot)
+library(reshape2)
+
+#Reading in the data and setting up data table 
+setwd("C:/Users/monta/OneDrive - Airey Family/ALSC Analysis")
+alsc=read.csv("ALSCDATA_fish.csv", header=T)
+alsc=read.csv("ALSCDATA_fish_altered.csv",header=T)
+alsc_chem=read.csv("ALSCDATA_chem_altered.csv", header=T) # I altere
+lake=cbind(alsc_chem, alsc[,1:length(alsc[1,])-1] )
+lake$LONG..NAD83.DD.=lake$LONG..NAD83.DD.*-1
+#lake=lake[,-c(which(colnames(lake)=="BC"))]
+beg = which(colnames(lake)=="ST")
+# Species information
+species_list=colnames(lake)[c(length(alsc_chem[1,])+7:length(alsc[1,])-1)]
+# Min number of lakes fish has to occur in to be included in data (cpresabs)
+r=5
+
+
+prey_species = c(4,8,9,10,11,12,13,14,22,23,24,25,30,31,33,38,39,40,41,44,45,46,50,51,52,54,55) # i dont think this is totally right 
+
+se=c(4,9,13,24,31,32,38,40,42,44,49,52,53) # sensitive
+ot= c(10,8,9,31)
+gl= c(44,49,38,40, 32,30,12) # glacial: took out 11 WS, and 12 NRD, # Removed brook stickleback 22 and LNS 29
+at=c(4,24,42)
+ms=c(9,10)
+lw=c(13,31,52,53,8)
+minnows=c(4,9,13,24,31,32,38,40,42,44,49,52,53,30,10,8,12)
+study=c(24,9,10,8,38,32,30,12)
+#4,2,15,16,7,6,14,17
+
+
+#color_groups= c(A,M,L,A,L,gl_c,gl_c,gl_c,A,gl_c,gl_c,L,L,gl_c,M,L,gl_c)
+
+
+# Use this to create a presence absence data table 
+### Sets up the lakes data table to be presence absence
+for(h in beg:length(lake[1,])){ 
+  for(i in 1:length(lake[,44])){
+    if(is.na(lake[i,h]==TRUE)){
+      lake[i,h]=0
+    }else{lake[i,h]=1}
+    
+  }
+}
+lakes=lake # no longer have to run pres/abs transforamtion
+
+# Community richness
+for(i in 1:1468){
+  lakes$community_richness[i]=sum(lakes[i,c(beg:(length(lakes[1,])-1))])
+}
+
+# Use this to create data table without rare species
+rare=vector()
+for(i in beg:(length(lakes[1,])-2)){
+  rare[i-beg]=sum(lakes[,i])  
+}
+cfish=lakes[,-c(which(rare<r))] ### I changed lake to cfish, change lower down. 
+
+
+# Use this to create data table without fishless lakes
+vi = vector()
+for(i in 1:length(lakes[,1])){
+  laugh=sum(lakes[i,c(beg:length(lake[1,]))])
+  vi[i]=laugh
+}
+lakes=lakes[which(vi >= 1),]
+
+cfish=cfish[which(cfish$NF==0),]
+cfish=cfish[-c(221,715,730)]
+
+# Use this to select lakes that only have n or more species per lake
+
+#lakes=lakes[which(lakes$community_richness > n),]
+#cfish=cfish[which(cfish$community_richness > n),]
+
+# Creates presence/absence matrix without habitat information 
+presabs=lakes[,c(beg:(length(lakes)))] # With rare species
+cpresabs=cfish[,c(beg:(length(cfish)-2))] # Without rare species 
+ve=vector()
+for(i in 1:length(cpresabs[,1])){
+  ve[i]=sum(cpresabs[i,])
+}
+cpresabs=cpresabs[-c(which(ve==0)),]
+
+#Matrix for sensitve minnows
+sef=se+47
+sens=lakes[,c(1:47,sef)]
+
+
+dim(cpresabs)
+
+```
+```{r}
+# NDMS CHUNK
+data=sample(c(1:length(rare[,1])), size=700, replace=F)
+
+nmds=metaMDS(rare[data,], k=2)
+
+
+stressplot(nmds4,k=2)
+ordisurf(nmds,cfish$Elevation..m.[data], main="", col="forestgreen")
+orditorp(nmds,display="species",col="red",air=0.01)
+ordisurf(nmds4,lake$LAT..NAD83.DD., main="", col="forestgreen")
+orditorp(nmds4,display="species",col="red",air=0.01)
+ordisurf(nmds4,lake$LONG..NAD83.DD., main="", col="forestgreen")
+orditorp(nmds4,display="species",col="red",air=0.01)
+ordisurf(nmds3,lake$FIELDPH, main="", col="forestgreen")
+orditorp(nmds3,display="species",col="red",air=0.01)
+
+ordiplot(nmds, type="n")
+orditorp(nmds,display="species",col="red",air=0.01)
+
+
+pdf(file="file.pdf",
+    width = 10, # The width of the plot in inches
+    height = 6) # The height of the plot in inches
+ordiplot(nmds, type="n", ylim=c(-.05,.04), xlim=c(-.05,.01))
+orditorp(nmds,display="species",col="red",air=0.01)
+dev.off()
+```
+
+
+```{r} 
+### maps out species distributions 
+#Setting up a map 
+laty=seq(43,44.5,length= 100000)
+longy=seq(-73,-75.5, length=100000)
+
+## box to plot points 
+bc_bbox <- make_bbox(lat = laty, lon = longy)
+bc_big <- get_map(location = bc_bbox, source = "google", maptype=2)
+
+# creates items in which all lakes have specified  species in them 
+fishpops=lakes[which(lakes$community_richness != 0),]
+golden=lakes[which(lakes$GS != 0),]
+commonshine=lakes[which(lakes$CS != 0),]
+rainbowsmelt=lakes[which(lakes$RS !=0),]
+longnosedace=lakes[which(lakes$LND!=0),]
+lakechub=lakes[which(lakes$LC != 0),]
+brassyminnow=lakes[which(lakes$BM != 0),]
+whitesucker=lakes[which(lakes$WS != 0),]
+finescaledace=lakes[which(lakes$FSD != 0),]
+fatheadminnow=lakes[which(lakes$FHM != 0),]
+pearldace=lakes[which(lakes$PD != 0),]
+whitesucker=lakes[which(lakes$WS != 0),]
+longnosesucker=lakes[which(lakes$LNS != 0),]
+brookstickleback=lakes[which(lakes$BS != 0),]
+slimysculpin=lakes[which(lakes$SS != 0),]
+
+### Actual Plots
+
+ggmap(bc_big) + 
+  geom_point(data = lakechub, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Lake Chub Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = brassyminnow, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Brassy Minnow Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = finescaledace, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Finescale Dace Distribution")
+
+ggmap(bc_big) +  geom_point(data = fatheadminnow, mapping = aes(x = LONG..NAD83.DD., y=LAT..NAD83.DD.,size=community_richness))+ggtitle("Fathead Minnow Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = longnosedace, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Longnose Dace Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = pearldace, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Pearl Dace Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = whitesucker, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("White Sucker Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = longnosesucker, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Longnose Sucker Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = brookstickleback, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Brook Stickleback Distribution")
+
+ggmap(bc_big) + 
+  geom_point(data = slimysculpin, mapping = aes(x = LONG..NAD83.DD., y = LAT..NAD83.DD.,size=community_richness))+ggtitle("Slimy Sculpin Distribution")
+
+```
+```{r}
+A = "#e0db8b"
+gl_c= "#9bcce8"
+M="#afd197"
+L= "#cf8080"
+color_groups= c(A,M,L,A,L,gl_c,gl_c,gl_c,A,gl_c,gl_c,L,L,gl_c,M,L,gl_c)
+
+
+# Creats a matrix with summmary prey information, boxplots of summary table
+# pH
+group=minnows
+p_table = matrix(NA, 1000,length(group))
+fish=group + beg
+for(i in 1:length(group)){
+  species=na.omit(lakes$FIELDPH[which(lakes[,fish[i]] != 0)])
+  for(x in 1:length(species)){
+  p_table[x,i]=species[x]
+  }
+}
+colnames(p_table)=species_list[group]
+par(mar=c(10,2,1,1))
+boxplot(p_table, las=2, main = "Range of pH per species", col=color_groups)
+
+#Elevation
+e_table = matrix(NA, 1000,length(group))
+for(i in 1:length(group)){
+  species=na.omit(lakes$Elevation..m.[which(lakes[,fish[i]] != 0)])
+  for(x in 1:length(species)){
+  e_table[x,i]=species[x]
+  }
+}
+colnames(e_table)=species_list[group]
+par(mar=c(10,2,1,1))
+boxplot(e_table, las=2,main = "Range of elevation per species",col=color_groups)
+
+# Latitude
+lat_table = matrix(NA, 1000,length(group))
+for(i in 1:length(group)){
+  species=na.omit(lakes$LAT..NAD83.DD.[which(lakes[,fish[i]] != 0)])
+  for(x in 1:length(species)){
+  lat_table[x,i]=species[x]
+  }
+}
+colnames(lat_table)=species_list[group]
+par(mar=c(10,2,1,1))
+boxplot(lat_table, las=2,main = "Range of latitude per species",col=color_groups)
+
+#Longitude
+long_table = matrix(NA, 1000,length(group))
+for(i in 1:length(group)){
+  species=na.omit(lakes$LONG..NAD83.DD.[which(lakes[,fish[i]] != 0)])
+  for(x in 1:length(species)){
+  long_table[x,i]=species[x]
+  }
+}
+colnames(long_table)=species_list[group]
+par(mar=c(10,2,1,1))
+boxplot(long_table, las=2,main = "Range of longitude per species",col=color_groups)
+
+```
+
+```{r}
+##species accumulation curve 
+large=matrix(NA, length(alsc[,1]),100)
+list=vector()
+for(z in 1:100){
+  scramble=sample(1:length(lakes[,1]),length(lakes[,1]))
+  list=vector()
+  for(h in 1:length(lakes[,1])){
+    for(i in 47:(length(lakes)-1)){
+      if(!is.na(lakes[scramble[h],i])){
+        present=(colnames(lakes)[i])
+        list=list.append(list, present)
+      }
+      large[h,z]=length(unique(list))
+    }
+ }
+}
+#vector that contains the average accumulation 
+avg.=vector()
+for(i in 1:length(lakes[,1])){
+  avg.[i]=mean(large[i,])
+}
+plot(avg.,main="Species Accumulation Curve", xlab="Number of Lakes", ylab="Number of Species")
+```
+```{r}
+##minnow/prey accumulation curve 
+p=minnows+46
+large=matrix(NA, length(alsc[,1]),100)
+list=vector()
+for(z in 1:100){
+  scramble=sample(1:length(lakes[,1]),length(lakes[,1]))
+  list=vector()
+  for(h in 1:length(lakes[,1])){
+    for(i in p){
+      if(!is.na(lakes[scramble[h],i])){
+        present=(colnames(lakes)[i])
+        list=list.append(list, present)
+      }
+      large[h,z]=length(unique(list))
+    }
+ }
+}
+
+#vector that contains the average accumulation 
+avg.=vector()
+for(i in 1:length(lakes[,1])){
+  avg.[i]=mean(large[i,])
+}
+plot(avg.,main="Minnow Accumulation Curve", xlab="# of Lakes", ylab="# of Species", type="l")
+
+
+```
+```{r}
+## matrix for lakes summary information 
+environmentalfactors=matrix(NA, 6,3)
+colnames(environmentalfactors)=c("mean", "range min", "range-max")
+rownames(environmentalfactors)=c("pH","Lake Volume", "Conductivity","Maximum Depth","Regional Fauna","Single-Lake Richness")
+environmentalfactors[1,1]=mean(lakes$FIELDPH, na.rm=T) ## 5.74
+environmentalfactors[1,2]=range(lakes$FIELDPH, na.rm=T)[1] ## 3.82-9.40
+environmentalfactors[1,3]=range(lakes$FIELDPH, na.rm=T)[2]
+environmentalfactors[2,1]=mean(lakes$Volume.m3., na.rm=T) ## 5.74
+environmentalfactors[2,2]=range(lakes$Volume.m3., na.rm=T)[1] ## 3.82-9.40
+environmentalfactors[2,3]=range(lakes$Volume.m3., na.rm=T)[2]
+environmentalfactors[3,1]=mean(lakes$SCONDUCT..?mhos.cm.1., na.rm=T) ## 5.74
+environmentalfactors[3,2]=range(lakes$SCONDUCT..?mhos.cm.1., na.rm=T)[1] ## 3.82-9.40
+environmentalfactors[3,3]=range(lakes$SCONDUCT..?mhos.cm.1., na.rm=T)[2]
+environmentalfactors[4,1]=mean(lakes$Max.Depth..m., na.rm=T) ## 5.74
+environmentalfactors[4,2]=range(lakes$Max.Depth..m., na.rm=T)[1] ## 3.82-9.40
+environmentalfactors[4,3]=range(lakes$Max.Depth..m., na.rm=T)[2]
+environmentalfactors[5,1]=57
+environmentalfactors[6,1]=mean(lakes$community_richness, na.rm=T) ## 5.74
+environmentalfactors[6,2]=range(lakes$community_richness, na.rm=T)[1] ## 3.82-9.40
+environmentalfactors[6,3]=range(lakes$community_richness, na.rm=T)[2]
+environmentalfactors
+```
+
+
+```{r}
+nums=c(4,27,33,102)
+pcavars=na.omit(lakes[,nums])
+colnames(pcavars)=colnames(lakes)[nums]
+library(ggbiplot)
+ph.pca=prcomp(pcavars[,-(length(nums))], center=T, scale=T)
+plot(ph.pca, type="l",main="")
+ggbiplot(ph.pca, choices=c(1,2), obs.scale=1, var.scale=1, groups =pcavars[,length(nums)])
+
+
+```

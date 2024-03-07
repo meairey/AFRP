@@ -1,0 +1,58 @@
+Species,family,class,upland_invasive,thermal,group ,Common
+NP,,Pred,int,cool,glacial,N. perch
+RB,,Pred,int,cool,mississippi,rockbass
+WE,,Pred,low_only,cool,glacial,walleye
+CLM,leuciscidae,Min,nat,cool,atlantic,cutlips minnow
+CS,leuciscidae,Min,nat,cool,mississippi,common shiner
+CC,leuciscidae,Min,nat,cool,mississippi,creek chub
+NRD,leuciscidae,Min,nat,cool,mississippi,N. redbelly dace
+BNM,leuciscidae,Min,int,warm,mississippi,bluntnose minnow
+BM,leuciscidae,Min,int,warm,mississippi,bluntnose minnow
+BND,leuciscidae,Min,nat,cool,atlantic,blacknose dace
+LC,leuciscidae,Min,nat,cold,glacial,lake chub
+FF,leuciscidae,Min,int,cool,atlantic,fallfish
+NPD,leuciscidae,min,nat,cool,glacial,N. pearl dace
+PD,leuciscidae,Min,nat,cool,glacial,pearl dace
+FHM,leuciscidae,Min,low_only,warm,glacial,fathead minnow
+LND,leuciscidae,Min,nat,cool,glacial,longnose dace
+FSD,leuciscidae,Min,nat,cool,glacial,finescale dace
+GS,leuciscidae,IntMin,int,warm,mississippi,golden shiner
+BS,Gasterosteidae,IntMin,int,warm,glacial,brook stickleback
+MCS,leuciscidae,IntMin,int,warm,mississippi,mimic shiner
+ESM,leuciscidae,IntMin,int,warm,atlantic,eastern silvery minnow
+BRM,leuciscidae,IntMin,nat,cool,glacial,brassy minnow
+BDS,leuciscidae,IntMin,low_only,warm,atlantic,bridle shiner
+CP,Other,Other,int,warm,unkown,crappie
+BG,Other,Other,int,warm,mississippi,bluegill
+YB,Other,Other,int,cool,mississippi,yellow bullhead
+RWF,Other,Other,nat,cold,glacial,round whitefish
+LWF,Other,Other,nat,cold,glacial,lake whitefish
+CIS,Other,Other,nat,cold,glacial,cisco
+CCS,Other,Other,nat,cool,unkown,creek chubsucker
+AE,Other,Other,nat,cold,atlantic,american eel
+BK,IntOther,IntOther,int,cool,atlantic,banded killifish
+CRP,IntOther,IntOther,int,cool,unknown,carp
+TM,IntOther,IntOther,int,cool,mississippi,tiger muskie
+RS,IntOther,IntOther,int,cool,atlantic,rainbow smelt
+AW,IntOther,IntOther,int,cool,atlantic,aelwife
+BB,ictaluridae,BB,nat,cool,mississippi,brown bullhead
+SS,cotidae,SS,nat,cold,glacial,slimy sculpin
+PS,Centrarchid,Centrarchid,nat,warm,atlantic_mississippi,pumpkinseed
+MM,umbridae,Umbrid,int,cool,mississippi,central mudminnow
+WS,Catostomid,Catostomid,nat,cool,glacial,white sucker
+RBS,Centrarchid,Centrarchid,nat,cool,atlantic,redbreasted sunfish
+LNS,Catostomid,Catostomid,nat,cool,glacial,longnose sucker
+BC,Centrarchid,Centrarchid,int,cool,mississippi,black crappie
+SMB,Centrarchid,Centrarchid,int,warm,mississippi,smallmouth bass
+LMB,Centrarchid,Centrarchid,int,warm,mississippi,largemouth bass
+ST,salmonidae,Salmonid,nat,cold,glacial,brook trout
+LT,salmonidae,Salmonid,nat,cold,glacial,lake trout
+LLS,salmonidae,Salmonid,int,cold,glacial,atlantic salmon
+SPL,salmonidae,Salmonid,int,cold,exotic,splace
+KOK,salmonidae,Salmonid,int,cold,exotic,kokanee
+TGT,salmonidae,Salmonid,int,cold,exotic,tiger trout
+SAL,salmonidae,Salmonid,int,cold,atlantic,salmon
+BT,salmonidae,Salmonid,int,cold,exotic,brown trout
+RT,salmonidae,Salmonid,int,cold,exotic,rainbow trout
+YP,Percidae,Percidae,int,warm,glacial,yellow perch
+FSD-NRD,leuciscidae,leuciscidae,nat,cool,mississippi,
