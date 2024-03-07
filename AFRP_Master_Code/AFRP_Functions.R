@@ -1,10 +1,23 @@
-fish = read.csv("MA2276_Code/Data/FISH_MEASUREMENT.csv")
-sample = read.csv("MA2276_Code/Data/FISH_SAMPLE.csv")
-sites = read.csv("MA2276_Code/Data/SITES.csv")
-shoreline_length = read.csv("MA2276_Code/Data/BEFsites_LengthAndHabitat.csv")
+### Loads in and reads data ----------------------------
+## These are large files that I don't want to upload to github please source from your own computer
+#fish = read.csv("../AFRP/Data/FISH_MEASUREMENT_LML.csv") 
 
-species = unique(fish$SPECIES)
+fish = read.csv("../AFRP/MA2276_Code/Data/FISH_MEASUREMENT_2022.csv")
 
+fish = rbind(read.csv("../AFRP/Data/FISH_MEASUREMENT_LML.csv"), read.csv("../AFRP/Data/FISH_MEASUREMENT_FBL.csv"))
+
+#sample = read.csv("../AFRP/MA2276_Code/Data/FISH_SAMPLE_2022.csv")
+sample = read.csv("../AFRP/Data/FISH_SAMPLE_2024.csv") %>% 
+  mutate(EFFORT = parse_number(EFFORT))
+sites = read.csv("../AFRP/MA2276_Code/Data/SITES.csv")
+shoreline_length = read.csv("../AFRP/MA2276_Code/Data/BEFsites_LengthAndHabitat.csv")
+
+species = unique(fish$SPECIES) # Defines the number of unique species in measurement file
+
+
+## Filters the data -----------------
+
+## Note for some reason this doesn't work very well for FBL, so I should check
 filter_data = function(water, 
                        gear, 
                        species ,
@@ -34,7 +47,7 @@ filter_data = function(water,
 
 
 
-
+## Sites associated with specific habitats ----------------------
 hab_numbs = function(input_data){
   Hab_numbs = input_data %>%
     select(HAB_1, SITE) %>%
@@ -45,6 +58,10 @@ hab_numbs = function(input_data){
   return(Hab_numbs)
 }
 
+
+## Long format CPUE ------------------ 
+#### Provides CPUE in seconds
+#### Provides averages per site 
 CPUE_long_seconds = function(data_input){
   data_input %>% select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
                         FISH_N, WEIGHT, LENGTH,  EFFORT) %>%
@@ -56,6 +73,10 @@ CPUE_long_seconds = function(data_input){
     replace_na(list(CPUE_seconds = 0, n = 0))
 }
 
+
+## Long Format CPUE for each habitat --------------
+#### Provides CPUE in seconds
+#### Provides averages per habitat
 CPUE_long_seconds_habitat = function(data_input){
   data_input %>% select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
                         FISH_N, WEIGHT, LENGTH, HAB_1, GEAR, EFFORT) %>%
@@ -68,7 +89,7 @@ CPUE_long_seconds_habitat = function(data_input){
     replace_na(list(CPUE_seconds = 0, n = 0))
 }
 
-
+## Wide Format CPUE per site ---------------
 ## CPUE_wide does not average across habitat
 CPUE_wide_seconds_avg = function(data_input){
   cat =   data_input %>%
@@ -90,7 +111,19 @@ CPUE_wide_seconds_avg = function(data_input){
       pivot_wider(names_from = SPECIES, values_from = cpue)
 }
 
-## CPUE_wide_seconds not averaged across sites
+## Wide Format CPUE ------------ 
+#### CPUE_wide_seconds not averaged across sites
+#### Have not used this one in a little while - should double check
+#### This should provide one value for each year (whole lake CPUE)
+
+data_input= LML_data
+
+counts = data_input %>%
+  select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
+         FISH_N, WEIGHT, LENGTH,  EFFORT) %>%
+  group_by(WATER, DAY_N, YEAR, SITE, SPECIES, EFFORT) %>%
+  count()
+
 CPUE_wide_seconds = function(data_input){ ## I removed HAB_1 from the select for the TPN data
   data_input %>%
     select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
@@ -110,7 +143,7 @@ CPUE_wide_seconds = function(data_input){ ## I removed HAB_1 from the select for
     pivot_wider(names_from = SPECIES, values_from = cpue)
 }
 
-
+#### Wide Format CPUE per shoreline length ----------------
 CPUE_wide_shore = function(data_input){
   data_input %>%
   select(YSAMP_N, DAY_N, YEAR, SEASON, WATER, SITE, SPECIES,
@@ -126,6 +159,8 @@ CPUE_wide_shore = function(data_input){
   mutate(across(everything(), ~replace_na(.x,0)))
 }
 
+
+#### Long Format CPUE per shoreline length -----------------
 CPUE_long_shore = function(data_input){
   data_input %>% 
     select(YSAMP_N, DAY_N, YEAR, SEASON, 

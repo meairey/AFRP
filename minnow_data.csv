@@ -1,0 +1,19 @@
+,Species,DemersPelag,LongevityWild,TL_cm,RepGuild1,RepGuild2,BodyShapeI,Herbivory2,FeedingType,FoodTroph,code,fish_species
+1,Margariscus nachtriebi,benthopelagic,NA,16,NA,NA,elongated,NA,NA,NA,PD,Margariscus nachtriebi
+2,Margariscus margarita,demersal,4,16,nonguarders,open water/substratum egg scatterers,elongated,mainly animals (troph. 2.8 and up),NA,3.05,PD,Margariscus margarita
+3,Luxilus cornutus,demersal,6,18,guarders,nesters,fusiform / normal,plants/detritus+animals (troph. 2.2-2.79),variable,2.87,CS,Luxilus cornutus
+4,Chrosomus eos,demersal,3,8,nonguarders,open water/substratum egg scatterers,NA,plants/detritus+animals (troph. 2.2-2.79),variable,3.05,NRD,Chrosomus eos
+5,Notemigonus crysoleucas,demersal,9,32,nonguarders,open water/substratum egg scatterers,fusiform / normal,plants/detritus+animals (troph. 2.2-2.79),variable,2.62,GS,Notemigonus crysoleucas
+6,Pimephales promelas,demersal,5,10.10000038,guarders,nesters,fusiform / normal,mainly plants/detritus (troph. 2-2.19),variable,3.13,FHM,Pimephales promelas
+7,Rhinichthys atratulus,demersal,3,12.39999962,nonguarders,open water/substratum egg scatterers,fusiform / normal,plants/detritus+animals (troph. 2.2-2.79),variable,3.05,BND,Rhinichthys atratulus
+8,Semotilus atromaculatus,demersal,8,30.29999924,nonguarders,brood hiders,NA,mainly animals (troph. 2.8 and up),hunting macrofauna (predator),3.21,CC,Semotilus atromaculatus
+9,Couesius plumbeus,demersal,5,23,nonguarders,open water/substratum egg scatterers,fusiform / normal,mainly animals (troph. 2.8 and up),NA,3.38,LC,Couesius plumbeus
+10,Rhinichthys cataractae,demersal,5,22.5,nonguarders,open water/substratum egg scatterers,elongated,mainly animals (troph. 2.8 and up),hunting macrofauna (predator),3.2,LND,Rhinichthys cataractae
+11,Hybognathus hankinsoni,demersal,NA,9.699999809,nonguarders,open water/substratum egg scatterers,NA,plants/detritus+animals (troph. 2.2-2.79),variable,3.09,BM,Hybognathus hankinsoni
+12,Hybognathus regius,benthopelagic,NA,15,nonguarders,open water/substratum egg scatterers,NA,mainly plants/detritus (troph. 2-2.19),NA,2,ESM,Hybognathus regius
+13,Pimephales notatus,demersal,5,11,guarders,nesters,elongated,plants/detritus+animals (troph. 2.2-2.79),variable,2.41,BRM,Pimephales notatus
+14,Notropis bifrenatus,benthopelagic,NA,6.5,nonguarders,open water/substratum egg scatterers,NA,plants/detritus+animals (troph. 2.2-2.79),variable,2.82,BS,Notropis bifrenatus
+15,Exoglossum maxillingua,demersal,2,16,NA,NA,fusiform / normal,mainly animals (troph. 2.8 and up),NA,3.04,CLM,Exoglossum maxillingua
+16,Chrosomus neogaeus,demersal,6,11,NA,NA,NA,plants/detritus+animals (troph. 2.2-2.79),grazing on aquatic plants,3.02,FSD,Chrosomus neogaeus
+17,Notropis volucellus,benthopelagic,2,7.599999905,NA,NA,NA,plants/detritus+animals (troph. 2.2-2.79),hunting macrofauna (predator),2.43,MCS,Notropis volucellus
+18,Semotilus corporalis,demersal,6,51,NA,NA,elongated,mainly animals (troph. 2.8 and up),hunting macrofauna (predator),3.41,FF,Semotilus corporalis
